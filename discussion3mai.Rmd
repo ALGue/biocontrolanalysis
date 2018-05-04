@@ -1,0 +1,255 @@
+---
+title: "Untitled"
+author: "Antoine"
+date: "3 mai 2018"
+output:
+  slidy_presentation: default
+  beamer_presentation: default
+---
+
+```{r setup, include=FALSE}
+rm(list=ls())
+
+# packages
+library(tidyverse)
+library(DescTools)
+
+# options
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, fig.height = 6, fig.width = 13, fig.align = "center")
+```
+
+## time-for-crop-loss : sortie précoce
+
+```{r time-for-crop-loss.data.fast}
+data_path <- "/home/antoine/Documents/Git/Biological-Control/results/essai-time-for-crop-loss"
+
+
+filename.arrivals <- list.files(data_path,
+                                pattern="^distribution-arrival-[0-9]{1,2}-[0-9]{1,4}-[0-9]{1,2}-[0-9]{1,2}-[0-9]{1,2}.txt") 
+column.names.arrivals <- c(
+  # par.
+  "proportion",
+  "agregation", 
+  "infection.rate",
+  "nb.init",
+  # time
+  "year", 
+  "tick", 
+  # outputs
+  "event",
+  "pxcor",
+  "pycor",
+  "t.pest.alone",
+  "t.for.crop.loss")
+
+data.arrivals <- tibble(filename.arrivals) %>% 
+  mutate(file_contents = map(filename.arrivals, ~ read_delim(file.path(data_path, .), delim = " ", col_names = column.names.arrivals))) %>% 
+  unnest()
+```
+
+Proportion 10
+
+```{r time-for-crop-loss.p10.fast}
+data.arrivals %>%
+  select(proportion, agregation, nb.init, infection.rate, year, t.for.crop.loss) %>% 
+  filter(year == 1) %>% 
+  filter(proportion == 10) %>% 
+  group_by(proportion, agregation, infection.rate, nb.init, t.for.crop.loss) %>% 
+  mutate(count.occ = n()) %>% 
+  distinct() %>% 
+  ungroup() %>% 
+  # plot
+  ggplot(aes(x=t.for.crop.loss, y=count.occ)) +
+  geom_bar(stat = "identity") +
+  facet_grid(nb.init ~ ., labeller = label_both) +
+  ggtitle("Occurences time-for-crop-loss, scenario : SA, y1, inf.rate20, proportion10, various nb.init")
+
+data.arrivals %>%
+  select(proportion, agregation, nb.init, infection.rate, year, t.for.crop.loss) %>% 
+  filter(year == 10) %>% 
+  filter(proportion == 10) %>% 
+  group_by(proportion, agregation, infection.rate, nb.init, t.for.crop.loss) %>% 
+  mutate(count.occ = n()) %>% 
+  distinct() %>% 
+  ungroup() %>% 
+  # plot
+  ggplot(aes(x=t.for.crop.loss, y=count.occ)) +
+  geom_bar(stat = "identity") +
+  facet_grid(nb.init ~ ., labeller = label_both) +
+  ggtitle("Occurences time-for-crop-loss, scenario : SA, y10, inf.rate20, proportion10, various nb.init")
+```
+
+Proportion 90
+
+```{r time-for-crop-loss.p90.fast}
+data.arrivals %>%
+  select(proportion, agregation, nb.init, infection.rate, year, t.for.crop.loss) %>% 
+  filter(year == 1) %>% 
+  filter(proportion == 90) %>% 
+  group_by(proportion, agregation, infection.rate, nb.init, t.for.crop.loss) %>% 
+  mutate(count.occ = n()) %>% 
+  distinct() %>% 
+  ungroup() %>% 
+  # plot
+  ggplot(aes(x=t.for.crop.loss, y=count.occ)) +
+  geom_bar(stat = "identity") +
+  facet_grid(nb.init ~ ., labeller = label_both) +
+  ggtitle("Occurences time-for-crop-loss, scenario : SA, y1, inf.rate20, proportion90, various nb.init")
+
+data.arrivals %>%
+  select(proportion, agregation, nb.init, infection.rate, year, t.for.crop.loss) %>% 
+  filter(year == 10) %>% 
+  filter(proportion == 90) %>% 
+  group_by(proportion, agregation, infection.rate, nb.init, t.for.crop.loss) %>% 
+  mutate(count.occ = n()) %>% 
+  distinct() %>% 
+  ungroup() %>% 
+  # plot
+  ggplot(aes(x=t.for.crop.loss, y=count.occ)) +
+  geom_bar(stat = "identity") +
+  facet_grid(nb.init ~ ., labeller = label_both) +
+  ggtitle("Occurences time-for-crop-loss, scenario : SA, y10, inf.rate20, proportion90, various nb.init")
+```
+
+## time-for-crop-loss : sortie tardive
+
+```{r time-for-crop-loss.data.late}
+data_path <- "/home/antoine/Documents/Git/Biological-Control/results/essai-time-for-crop-loss2"
+
+
+filename.arrivals <- list.files(data_path,
+                                pattern="^distribution-arrival-[0-9]{1,2}-[0-9]{1,4}-[0-9]{1,2}-[0-9]{1,2}-[0-9]{1,2}.txt") 
+column.names.arrivals <- c(
+  # par.
+  "proportion",
+  "agregation", 
+  "infection.rate",
+  "nb.init",
+  # time
+  "year", 
+  "tick", 
+  # outputs
+  "event",
+  "pxcor",
+  "pycor",
+  "t.pest.alone",
+  "t.for.crop.loss")
+
+data.arrivals <- tibble(filename.arrivals) %>% 
+  mutate(file_contents = map(filename.arrivals, ~ read_delim(file.path(data_path, .), delim = " ", col_names = column.names.arrivals))) %>% 
+  unnest()
+```
+
+Proportion 10
+
+```{r time-for-crop-loss.p10.late}
+data.arrivals %>%
+  select(proportion, agregation, nb.init, infection.rate, year, t.for.crop.loss) %>% 
+  filter(year == 1) %>% 
+  filter(proportion == 10) %>% 
+  group_by(proportion, agregation, infection.rate, nb.init, t.for.crop.loss) %>% 
+  mutate(count.occ = n()) %>% 
+  distinct() %>% 
+  ungroup() %>% 
+  # plot
+  ggplot(aes(x=t.for.crop.loss, y=count.occ)) +
+  geom_bar(stat = "identity") +
+  facet_grid(nb.init ~ ., labeller = label_both) +
+  ggtitle("Occurences time-for-crop-loss, scenario : SA, y1, inf.rate20, proportion10, various nb.init")
+
+data.arrivals %>%
+  select(proportion, agregation, nb.init, infection.rate, year, t.for.crop.loss) %>% 
+  filter(year == 10) %>% 
+  filter(proportion == 10) %>% 
+  group_by(proportion, agregation, infection.rate, nb.init, t.for.crop.loss) %>% 
+  mutate(count.occ = n()) %>% 
+  distinct() %>% 
+  ungroup() %>% 
+  # plot
+  ggplot(aes(x=t.for.crop.loss, y=count.occ)) +
+  geom_bar(stat = "identity") +
+  facet_grid(nb.init ~ ., labeller = label_both) +
+  ggtitle("Occurences time-for-crop-loss, scenario : SA, y10, inf.rate20, proportion10, various nb.init")
+```
+
+Proportion 90
+
+```{r time-for-crop-loss.p90.late}
+data.arrivals %>%
+  select(proportion, agregation, nb.init, infection.rate, year, t.for.crop.loss) %>% 
+  filter(year == 1) %>% 
+  filter(proportion == 90) %>% 
+  group_by(proportion, agregation, infection.rate, nb.init, t.for.crop.loss) %>% 
+  mutate(count.occ = n()) %>% 
+  distinct() %>% 
+  ungroup() %>% 
+  # plot
+  ggplot(aes(x=t.for.crop.loss, y=count.occ)) +
+  geom_bar(stat = "identity") +
+  facet_grid(nb.init ~ ., labeller = label_both) +
+  ggtitle("Occurences time-for-crop-loss, scenario : SA, y1, inf.rate20, proportion90, various nb.init")
+
+data.arrivals %>%
+  select(proportion, agregation, nb.init, infection.rate, year, t.for.crop.loss) %>% 
+  filter(year == 10) %>% 
+  filter(proportion == 90) %>% 
+  group_by(proportion, agregation, infection.rate, nb.init, t.for.crop.loss) %>% 
+  mutate(count.occ = n()) %>% 
+  distinct() %>% 
+  ungroup() %>% 
+  # plot
+  ggplot(aes(x=t.for.crop.loss, y=count.occ)) +
+  geom_bar(stat = "identity") +
+  facet_grid(nb.init ~ ., labeller = label_both) +
+  ggtitle("Occurences time-for-crop-loss, scenario : SA, y10, inf.rate20, proportion90, various nb.init")
+```
+
+## time-for-crop-loss : sortie tardive + forte mortalité
+
+```{r time-for-crop-loss.data.late}
+data_path <- "/home/antoine/Documents/Git/Biological-Control/results/essai-time-for-crop-loss3"
+
+
+filename.arrivals <- list.files(data_path,
+                            pattern="^distribution-arrival-[0-9]{1,2}-[0-9]{1,4}-[0-9]{1,2}-[0-9]{1,2}-[0-9]{1,2}.txt") 
+column.names.arrivals <- c(
+  # par.
+  "proportion",
+  "agregation", 
+  "infection.rate",
+  "nb.init",
+  # time
+  "year", 
+  "tick", 
+  # outputs
+  "event",
+  "pxcor",
+  "pycor",
+  "t.pest.alone",
+  "t.for.crop.loss")
+
+data.arrivals <- tibble(filename.arrivals) %>% 
+  mutate(file_contents = map(filename.arrivals, ~ read_delim(file.path(data_path, .), delim = " ", col_names = column.names.arrivals))) %>% 
+  unnest()
+
+data.arrivals %>%
+  select(proportion, agregation, nb.init, infection.rate, year, t.for.crop.loss) %>% 
+  filter(year == 1) %>% 
+  filter(proportion == 10) %>% 
+  group_by(proportion, agregation, infection.rate, nb.init, t.for.crop.loss) %>% 
+  mutate(count.occ = n()) %>% 
+  distinct() %>% 
+  ungroup() %>% 
+  # plot
+  ggplot(aes(x=t.for.crop.loss, y=count.occ)) +
+  geom_bar(stat = "identity") +
+  facet_grid(nb.init ~ ., labeller = label_both) 
+
+data.arrivals %>%
+  # select(proportion, agregation, nb.init, infection.rate, year, t.for.crop.loss) %>% 
+  filter(year == 1) %>% 
+  filter(proportion == 10) %>% 
+  filter(nb.init == 10) %>% 
+  filter(t.for.crop.loss == 6) %>% 
+  select(pxcor, pycor,t.for.crop.loss)
+```

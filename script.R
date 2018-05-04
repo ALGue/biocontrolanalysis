@@ -300,7 +300,7 @@ data.crop.loss %>%
 
 ## ggplot differences between crop-loss and normalized crop-loss
 
-d <- data.crop.loss %>% 
+d <- data.totals %>% 
   # filter
   filter(agregation == 1) %>% 
   filter(infection.rate %in% c(5,10,15,20)) %>% 
@@ -312,7 +312,7 @@ d <- data.crop.loss %>%
   mutate(infection.rate = factor(infection.rate)) %>% 
   mutate(proportion = factor(proportion)) %>% 
   # on bind les données issues du control
-  bind_rows(control.crop.loss %>% 
+  bind_rows(control.totals %>% 
               # filter
               filter(agregation == 1) %>% 
               filter(infection.rate %in% c(5,10,15,20)) %>% 
@@ -517,3 +517,285 @@ data.arrival %>%
   labs(colour = "Indicator") +
   scale_colour_manual(values = c("red"), labels=c("% Max. occ.")) +
   ggtitle("Low agregation (1), Year 10 : % of occurences for time-since-infection")
+
+## AUC : ara under curve
+
+library(DescTools)
+AUC(x=c(1,3), y=c(1,1))
+
+AUC(x=c(1,2,3), y=c(1,2,4), method="trapezoid")
+AUC(x=c(1,2,3), y=c(1,2,4), method="step")
+
+plot(x=c(1,2,2.5), y=c(1,2,4), type="l", col="blue", ylim=c(0,4))
+lines(x=c(1,2,2.5), y=c(1,2,4), type="s", col="red")
+
+x <- seq(0, pi, length.out=200)
+AUC(x=x, y=sin(x)) 
+AUC(x=x, y=sin(x), method="spline") 
+
+######################################################
+
+library(tidyverse)
+
+data_path <- "/home/antoine/Documents/Git/Biological-Control/results/essai-time-for-crop-loss"
+
+
+filename.arrivals <- list.files(data_path,
+                                pattern="^distribution-arrival-[0-9]{1,2}-[0-9]{1,4}-[0-9]{1,2}-[0-9]{1,2}-[0-9]{1,2}.txt") 
+column.names.arrivals <- c(
+  # par.
+  "proportion",
+  "agregation", 
+  "infection.rate",
+  "nb.init",
+  # time
+  "year", 
+  "tick", 
+  # outputs
+  "event",
+  "pxcor",
+  "pycor",
+  "t.pest.alone",
+  "t.for.crop.loss")
+
+data.arrivals <- tibble(filename.arrivals) %>% 
+  mutate(file_contents = map(filename.arrivals, ~ read_delim(file.path(data_path, .), delim = " ", col_names = column.names.arrivals))) %>% 
+  unnest()
+
+data.arrivals %>%
+  select(proportion, agregation, nb.init, infection.rate, year, t.for.crop.loss) %>% 
+  filter(year == 1) %>% 
+  filter(proportion == 10) %>% 
+  group_by(proportion, agregation, infection.rate, nb.init, t.for.crop.loss) %>% 
+  mutate(count.occ = n()) %>% 
+  distinct() %>% 
+  ungroup() %>% 
+  # plot
+  ggplot(aes(x=t.for.crop.loss, y=count.occ)) +
+  geom_bar(stat = "identity") +
+  facet_grid(nb.init ~ ., labeller = label_both) +
+  ggtitle("Occurences time-for-crop-loss, scenario : SA, y1, inf.rate20, proportion10, various nb.init")
+
+data.arrivals %>%
+  select(proportion, agregation, nb.init, infection.rate, year, t.for.crop.loss) %>% 
+  filter(year == 10) %>% 
+  filter(proportion == 10) %>% 
+  group_by(proportion, agregation, infection.rate, nb.init, t.for.crop.loss) %>% 
+  mutate(count.occ = n()) %>% 
+  distinct() %>% 
+  ungroup() %>% 
+  # plot
+  ggplot(aes(x=t.for.crop.loss, y=count.occ)) +
+  geom_bar(stat = "identity") +
+  facet_grid(nb.init ~ ., labeller = label_both) +
+  ggtitle("Occurences time-for-crop-loss, scenario : SA, y10, inf.rate20, proportion10, various nb.init")
+
+# scenario LA
+data.arrivals %>%
+  select(filename.arrivals, proportion, agregation, infection.rate, year, t.for.crop.loss) %>%
+  #filter(agregation == 1) %>%
+  #filter(infection.rate %in% c(5,10,15,20)) %>% 
+  filter(year == 10) %>%
+  group_by(filename.arrivals, proportion, agregation, infection.rate,t.for.crop.loss) %>% 
+  mutate(count.occ = n()) %>% 
+  distinct() %>% 
+  ungroup() %>% 
+  # plot
+  ggplot(aes(x=t.for.crop.loss, y=count.occ)) +
+  geom_bar(stat = "identity") +
+  # x-axis
+  scale_x_continuous(name = "Time since infection, when adults arrive on the infected patch", 
+                     breaks = c(6,10,15,20), 
+                     limits = c(6,20)) +
+  scale_y_continuous(name = "Occurences for each t (time-since-infection)") +
+  #geom_hline(data = values.for.hline,
+  #           aes(yintercept=count.occ, colour="count.occ.t.pest.alone"), 
+  #           linetype="dashed", 
+  #           size=1) + 
+  # facet_grid(infection.rate ~ proportion, labeller = label_both) +
+  labs(colour = "Indicator") +
+  scale_colour_manual(values = c("red"), labels=c("Max. occ.")) +
+  ggtitle("LA (1, y10) : Distribution of occurences for time btw. infection / arrival")
+
+
+
+
+
+
+
+#############################
+
+data_path <- "/home/antoine/Documents/Git/Biological-Control/results/essai-time-for-crop-loss3"
+
+
+filename.tforcroploss <- list.files(data_path,
+                                pattern="^time-for-crop-loss-[0-9]{1,2}-[0-9]{1,4}-[0-9]{1,2}-[0-9]{1,2}-[0-9]{1,2}.txt") 
+column.names.tforcroploss <- c(
+  # par.
+  "proportion",
+  "agregation", 
+  "infection.rate",
+  "nb.init",
+  # time
+  "year", 
+  # outputs
+  "t.for.crop.loss")
+
+data.tforcroploss <- tibble(filename.tforcroploss) %>% 
+    mutate(file_contents = map(filename.tforcroploss, ~ read_delim(file.path(data_path, .), delim = " ", col_names = column.names.tforcroploss))) %>% 
+    unnest() 
+
+data.tforcroploss %>% 
+  filter(proportion == 10) %>% 
+  filter(nb.init == 10) %>% 
+  filter(infection.rate == 80) %>% 
+  filter(year == 10) %>% 
+  select(proportion, agregation, nb.init, infection.rate, year, t.for.crop.loss) %>% 
+  group_by(proportion, agregation, infection.rate, nb.init, t.for.crop.loss) %>% 
+  mutate(count.occ = n()) %>% 
+  distinct() %>% 
+  ungroup() %>% 
+  # plot
+  ggplot(aes(x=t.for.crop.loss, y=count.occ)) +
+  geom_bar(stat = "identity")
+
+data.tforcroploss %>%
+  select(proportion, agregation, nb.init, infection.rate, year, t.for.crop.loss) %>% 
+  filter(year == 1) %>% 
+  filter(proportion == 10) %>% 
+  group_by(proportion, agregation, infection.rate, nb.init, t.for.crop.loss) %>% 
+  mutate(count.occ = n()) %>% 
+  distinct() %>% 
+  ungroup() %>% 
+  # plot
+  ggplot(aes(x=t.for.crop.loss, y=count.occ)) +
+  geom_bar(stat = "identity") +
+  facet_grid(nb.init ~ ., labeller = label_both)
+
+#############################
+
+data_path <- "data/exp9"
+
+
+filename.tforcroploss <- list.files(data_path,
+                                    pattern="^time-for-crop-loss-[0-9]{1,2}-[0-9]{1,4}-[0-9]{1,2}-[0-9]{1,2}-[0-9]{1,2}.txt") 
+column.names.tforcroploss <- c(
+  # par.
+  "proportion",
+  "agregation", 
+  "infection.rate",
+  "nb.init",
+  # time
+  "year", 
+  # outputs
+  "t.for.crop.loss")
+
+data.tforcroploss <- tibble(filename.tforcroploss) %>% 
+  mutate(file_contents = map(filename.tforcroploss, ~ read_delim(file.path(data_path, .), delim = " ", col_names = column.names.tforcroploss))) %>% 
+  unnest()
+
+# proportion 0 10 90
+# nb.init 0 1 2 3 4 5 6 7 8 9 10 20
+# year 1 5
+# agregation 1 5
+
+# à year = 5, on voit bien la différence entre proportion 10 et 90
+
+data.tforcroploss %>%
+  select(proportion, agregation, nb.init, infection.rate, year, t.for.crop.loss) %>% 
+  # filter
+  filter(year == 5) %>% 
+  filter(agregation == 5) %>% 
+  filter(proportion == 90) %>% 
+  filter(infection.rate == 20) %>% 
+  # group and count occ. for t.for.crop.loss
+  group_by(proportion, agregation, infection.rate, nb.init, t.for.crop.loss) %>% 
+  mutate(count.occ = n()) %>% 
+  distinct() %>% 
+  ungroup() %>% 
+  # plot
+  ggplot(aes(x=t.for.crop.loss, y=count.occ)) +
+  geom_bar(stat = "identity") +
+  # facets according to nb.init
+  facet_grid(nb.init ~ ., labeller = label_both) +
+  ggtitle("Strong agreg., Year5, inf.rate20, proportion 90")
+
+data.tforcroploss %>%
+  select(proportion, agregation, nb.init, infection.rate, year, t.for.crop.loss) %>% 
+  # filter
+  filter(year == 5) %>% 
+  filter(agregation == 5) %>% 
+  filter(nb.init == 10) %>% 
+  # filter(infection.rate == 20) %>% 
+  # group and count occ. for t.for.crop.loss
+  group_by(proportion, agregation, infection.rate, nb.init, t.for.crop.loss) %>% 
+  mutate(count.occ = n()) %>% 
+  distinct() %>% 
+  ungroup() %>% 
+  # filter for plot (reduce levels)
+  filter(infection.rate %in% c(5,10,15,20)) %>% 
+  filter(proportion %in% c(10,30,50,70,90)) %>% 
+  # plot
+  ggplot(aes(x=t.for.crop.loss, y=count.occ)) +
+  geom_bar(stat = "identity") +
+  # facets according to nb.init
+  facet_grid(infection.rate ~ proportion, labeller = label_both) +
+  ggtitle("")
+
+
+######
+
+## wd
+data_path <- "data/exp10"
+
+filename.totals <- list.files(data_path, 
+                              pattern="^totals-[0-9]{1,4}-[0-9]{1,2}-[0-9]{1,2}-[0-9]{1,2}.txt")
+
+column.names.totals <- c(
+  # par.
+  "infection.rate",
+  "proportion",
+  "agregation",
+  "nb.init",
+  # time
+  "year",
+  # outputs
+  "crop.loss.1st",
+  "crop.loss",
+  "crop.save")
+
+data.totals <- tibble(filename.totals) %>% 
+  # load whole data
+  mutate(file_contents = map(filename.totals, ~ read_delim(file.path(data_path, .), delim = " ", col_names = column.names.totals))) %>% 
+  unnest()
+
+data.totals %>% 
+  # filter
+  filter(agregation == 5) %>%
+  filter(nb.init == 10) %>% 
+  filter(year == 1) %>% 
+  # data type (data = with predators, ow. control)
+  mutate(type = factor('data')) %>% 
+  # -> factors
+  mutate(infection.rate = factor(infection.rate)) %>% 
+  mutate(proportion = factor(proportion)) %>% 
+  # bind 'data' (with predators) with 'control'
+  # bind_rows(control.totals %>% 
+  #             # filter
+  #             filter(agregation == 5) %>% 
+  #             filter(infection.rate %in% c(5,10,15,20)) %>% 
+  #             filter(proportion %in% c(10,30,50,70,90)) %>% 
+  #             filter(year == 10) %>% 
+  #             # data type (data = with predators, ow. control)
+  #             mutate(type = factor('control')) %>% 
+  #             # -> factor
+  #             mutate(infection.rate = factor(infection.rate)) %>% 
+  #             mutate(proportion = factor(proportion))) %>% 
+  # plot
+  ggplot() +
+  geom_point(aes(x = proportion, y =  crop.loss, colour = type)) +
+  # geom_line(aes(x = proportion, y =  crop.loss, colour = type)) +
+  # facets
+  facet_grid(infection.rate ~ ., labeller = label_both) +
+  # title
+  ggtitle("SA, y10 : Crop loss (total landscape) btw. control / with predators")

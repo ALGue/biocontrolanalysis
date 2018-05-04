@@ -1,0 +1,466 @@
+---
+title: "discussion4mai"
+author: "Antoine"
+date: \`r format(Sys.Date(), "%m %d,%Y")`\
+output:
+  slidy_presentation: default
+---
+
+```{r setup, include=FALSE}
+rm(list=ls())
+
+# packages
+library(tidyverse)
+library(DescTools)
+
+# options
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, fig.height = 6, fig.width = 13, fig.align = "center")
+```
+
+```{r multiplot function}
+
+# multiplot function : several ggplot on the same page
+
+multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
+  library(grid)
+
+  # Make a list from the ... arguments and plotlist
+  plots <- c(list(...), plotlist)
+
+  numPlots = length(plots)
+
+  # If layout is NULL, then use 'cols' to determine layout
+  if (is.null(layout)) {
+    # Make the panel
+    # ncol: Number of columns of plots
+    # nrow: Number of rows needed, calculated from # of cols
+    layout <- matrix(seq(1, cols * ceiling(numPlots/cols)),
+                    ncol = cols, nrow = ceiling(numPlots/cols))
+  }
+
+ if (numPlots==1) {
+    print(plots[[1]])
+
+  } else {
+    # Set up the page
+    grid.newpage()
+    pushViewport(viewport(layout = grid.layout(nrow(layout), ncol(layout))))
+
+    # Make each plot, in the correct location
+    for (i in 1:numPlots) {
+      # Get the i,j matrix positions of the regions that contain this subplot
+      matchidx <- as.data.frame(which(layout == i, arr.ind = TRUE))
+
+      print(plots[[i]], vp = viewport(layout.pos.row = matchidx$row,
+                                      layout.pos.col = matchidx$col))
+    }
+  }
+}
+```
+
+```{r load data for dynamics}
+
+## wd
+data_path <- "data/exp9"
+
+## dyn
+filename.dyn <- list.files(data_path, 
+                           pattern="^[0-9]{1,4}-[0-9]{1,2}-[0-9]{1,2}-[0-9]{1,2}.txt")
+
+column.names.dyn <- c(
+  # init.params
+  "infection.rate",
+  "proportion",
+  "agregation",
+  "proba.overwintering",
+  "nb.init",
+  "proba.birth",
+  # time
+  "year",
+  "tick",
+  # outputs
+  "visit.count",
+  "dyn.inf",
+  "dyn.inf.non.occ",
+  "dyn.inf.occ",
+  "dyn.adults",
+  "tot.inf.cur",
+  "dyn.curation")
+
+## load -> data.dyn contient toutes les données, y compris le control (nb.init 0 / proportion 0)
+
+data.dyn <- tibble(filename.dyn) %>% 
+  # load whole data
+  mutate(file_contents = map(filename.dyn, ~ read_delim(file.path(data_path, .), delim = " ", col_names = column.names.dyn))) %>% 
+  unnest()
+```
+
+```{r compute fill.levels}
+
+## data.dyn -> data.dyn2
+# on calcule le stock de crops pour chaque simul selon proportion
+# on calcule ensuite les variious fill.levels par inf., normalisés par le stock crops
+
+data.dyn2 <- data.dyn %>% 
+  # select data we are interested in
+  select(- filename.dyn, - proba.birth, -proba.overwintering, - visit.count, - tot.inf.cur, - dyn.curation) %>%   
+  # tot crop patches in the landscape
+  mutate(stock.crops = 1089 - floor(1089*proportion/100)) %>% 
+  # tick = full landscape without pest control
+  mutate(tick.full.th = ceiling(stock.crops/infection.rate)) %>% 
+  # total infection fill level in the landscape 
+  mutate(fill.level = dyn.inf*100/stock.crops) %>%
+  # % of landscape infected patches without predators (adults / juveniles)
+  mutate(fill.level.non.occ = dyn.inf.non.occ*100/stock.crops) %>%
+  # % of landscape infected crop patches with predators (adults / juveniles)
+  mutate(fill.level.occ = dyn.inf.occ*100/stock.crops) %>%
+  # numeric -> factor (for ggplot)
+  mutate(infection.rate = factor(infection.rate)) %>% 
+  mutate(proportion = factor(proportion))
+```
+
+## control
+
+On mesure le % de remplissage (par inf.) du stock de crop patches dans le paysage.
+
+Il s'agit d'un control : différentes proportions d'éléments semi-naturels mais 0 prédateurs au départ
+
+```{r control for dynamics}
+
+# control -> filtrer sur nb.init = 0 (on a des proportions > 0 dans le jeu, mais avec nb.init = 0)
+# il faut donc filtrer un scenario agregation, un nb.init et une année
+# # on facette selon inf.rate / proportion
+
+data.dyn2 %>% 
+  filter(nb.init == 0) %>% 
+  filter(agregation == 5) %>%
+  filter(year == 1) %>% 
+  ggplot() +
+  # control
+  geom_point(mapping = aes(x = tick, y = fill.level, colour = "fill.level.c"),
+             size = 0.5) + 
+  facet_grid(infection.rate ~ proportion, labeller = label_both) +
+  ggtitle("Scenario : strong agregation, Year 1 : taux de remplissage du paysage par inf.")
+
+```
+Remarque : le point que l'on voit à 180, c'est parce qu'il y a la période de retour aux semi-naturals pour l'hivernage, qui dure 30 ticks (150 -> 180) mais qui est calculée en une fois (je pourrai enlever, c'est pour illustration du fonctionnement du modèle)
+
+Le taux de remplissage par inf. du control augmente et accélère avec proportion / inf.rate comme attendu
+
+
+## control + data en présence de prédateurs
+
+Comparaison des % de remplissage : control VS avec prédateurs
+
+```{r control VS data}
+
+# on reprend le code précédent (control)
+# on rajoute les data avec prédateurs, juste pour le fill.level global
+
+data.dyn2 %>% 
+  # control
+  filter(nb.init == 0) %>% 
+  filter(agregation == 5) %>%
+  filter(year == 1) %>% 
+  # filter pour le plot (à modifier aussi pour data + bas) -> pour que ce soit + lisible
+  filter(infection.rate %in% c(1,5,10,15)) %>% 
+  # plot 
+  ggplot() +
+  # control
+  geom_point(mapping = aes(x = tick, y = fill.level, colour = "Control"),
+                      size = 0.5) + 
+  # data
+  geom_point(data = data.dyn2 %>% 
+               # même filtre que control
+               filter(agregation == 5) %>%
+               filter(year == 1) %>%
+               # on rajoute un filtre sur nb.init (plusieurs modalités possibles dans le jeu)
+               filter(nb.init == 10) %>% 
+               # filter pour le plot (à modifier aussi pour control + haut) -> pour que ce soit + lisible
+               filter(infection.rate %in% c(1,5,10,15)),
+             mapping = aes(x = tick, y = fill.level, colour = "With pred"),
+             size = 0.5) + 
+  facet_grid(infection.rate ~ proportion, labeller = label_both) +
+  ggtitle("Comparaison remplissage control VS With pred (strong agregation, Y1, nb init pred = 10)")
+```
+
+Le taux de remplissage total par inf. commence par suivre la courbe du control -> pas de contrôle biologique auu début de la simul., le temps que les prédateurs sortent (environ 7 days) et trouvent des patchs infectés  
+
+Ce taux décroît en fin de simul. d'autant + vite que la proportion est forte -> - de patchs à contrôler alors que la pop. de prédateurs augmente rapidement (pas de densité dépendance dans le modèle)
+
+Il décroît aussi en fin de simul. d'autant + vite qu'inf.rate est fort... -> à priori curieux, ou alors la pop. de préds augmente très rapidement car inf.rate fort = bcp. de food et donc leur grand nb. permet de se projeter + rapidement en fin de simul. sur l'ensemble des crop patches infectés
+
+## control + data -> découpage patchs occupés / non occupés
+
+On découpe le % de remplissage entre :
+
+- % de patchs crops infectés mais non-occupés par des prédateurs (adultes ou juv.)
+- % de patchs crop infectés et occupés
+
+Rappel : 
+
+- les patchs soignés redeviennent sains une fois guéris
+- ils ne peuvent plus être infectés
+
+-> d'où la diminution en fin de saison des patchs infectés occupés
+
+```{r control VS various fill.levels}
+
+# même code que le précédent mais :
+# on efface le fill.level global, pour le découper en fill.level.non.occ et fill.level.occ
+
+data.dyn2 %>% 
+  # control
+  filter(nb.init == 0) %>% 
+  filter(agregation == 5) %>%
+  filter(year == 1) %>% 
+  # filter pour que le plot soit + lisible (à rajouter aussi + bas pour data)
+  filter(infection.rate %in% c(1,5,10,15)) %>% 
+  # plot
+  ggplot() +
+  # control
+  geom_point(mapping = aes(x = tick, y = fill.level, colour = "Control"),
+             size = 0.5) + 
+  # data (= with pred)
+  ## non.occ
+  geom_point(data = data.dyn2 %>% 
+               # même filtre que control
+               filter(agregation == 5) %>%
+               filter(year == 1) %>%
+               # on rajoute un filtre sur nb.init (plusieurs modalités possibles dans le jeu)
+               filter(nb.init == 10) %>% 
+               # filter pour que le plot soit + lisible
+               filter(infection.rate %in% c(1,5,10,15)),
+             mapping = aes(x = tick, y = fill.level.non.occ, colour = "With pred : crops inf. and non occ."),
+             size = 0.5) + 
+  ## occ.
+  geom_point(data = data.dyn2 %>% 
+               # même filtre que control
+               filter(agregation == 5) %>%
+               filter(year == 1) %>%
+               # on rajoute un filtre sur nb.init (plusieurs modalités possibles dans le jeu)
+               filter(nb.init == 10) %>%   
+               # filter pour que le plot soit + lisible
+               filter(infection.rate %in% c(1,5,10,15)),
+             mapping = aes(x = tick, y = fill.level.occ, colour = "With pred : crops inf. and occ."),
+             size = 0.5) + 
+  facet_grid(infection.rate ~ proportion, labeller = label_both)+
+  ggtitle("Découpage du remplissage par inf. entre non.occ et occ. (strong agregation, Y1, nb init pred = 10)")
+```
+
+Lorsque proportion augmente, l'enveloppe des crops inf. et occ. augmente -> + de crops patches infectés sont visités rapidement et soignés et cela s'étale dans le temps = la guérison survient + tôt dans la saison
+
+## Dynamique des prédateurs (adultes)
+
+On regarde comment varie le nb. d'adultes sur 2 années différentes :
+
+- Year 1
+- Year 5 -> stabilisation de dyn. de la pop. entre années  (observé visuellement)
+
+```{r dyn.adults}
+
+# code précédent en remplaçant les fill.levels (dyn des inf.) par dyn des pred.
+# on regarde pour deux années 1 et 5, afin checker si la stabilisation de la dyn. change qque chose
+
+## Year 1
+
+data.dyn2 %>% 
+  filter(agregation == 5) %>%
+  filter(year == 1) %>%
+  # on rajoute un filtre sur nb.init (plusieurs modalités possibles dans le jeu)
+  filter(nb.init == 10) %>% 
+  # filter pour que le plot soit + lisible
+  filter(infection.rate %in% c(1,5,10,15)) %>% 
+  # plot
+  ggplot() +
+  geom_point(mapping = aes(x = tick, y = dyn.adults, colour = "Predators (adults)"),
+             size = 0.5) + 
+    facet_grid(infection.rate ~ proportion, labeller = label_both)+
+  ggtitle("Y1 : Dynamique des prédateurs (strong agregation, nb init pred = 10)")
+
+## Year 5
+
+data.dyn2 %>% 
+  filter(agregation == 5) %>%
+  filter(year == 5) %>%
+  # filter pour que le plot soit + lisible
+  filter(infection.rate %in% c(1,5,10,15)) %>% 
+  # on rajoute un filtre sur nb.init (plusieurs modalités possibles dans le jeu)
+  filter(nb.init == 10) %>% 
+  # plot
+  ggplot() +
+  geom_point(mapping = aes(x = tick, y = dyn.adults, colour = "Predators (adults)"),
+             size = 0.5) + 
+    facet_grid(infection.rate ~ proportion, labeller = label_both)+
+  ggtitle("Y5 : Dynamique des prédateurs (strong agregation, nb init pred = 10)")
+```
+
+Remarques : les 2 points en fin de simul. correspondent à tick 150 (conversion en une fois des juv. en adults -> augmentation du nb. total d'adultes) et tick 180 (phénomène d'hivernage où l'on kill les pops. excessives dans les éléments semi-naturels)
+
+Au cours de la saison, lorsque proporion augmente, le pic d'adultes survient + tôt et ensuite la mortalité combinée au manque de food (on autorise un seul cycle d'infection pour les patchs) fait diminuer leur nombre
+
+## Durée d'infection des patchs avant arrivée d'un prédateur
+
+t.fro.crop.loss (abscisse) = durée d'infection des patchs crops avant arrivée d'un prédateur
+
+```{r load data for t.crop.loss}
+
+## wd
+data_path <- "data/exp9"
+
+filename.tforcroploss <- list.files(data_path,
+                                    pattern="^time-for-crop-loss-[0-9]{1,2}-[0-9]{1,4}-[0-9]{1,2}-[0-9]{1,2}-[0-9]{1,2}.txt") 
+column.names.tforcroploss <- c(
+  # par.
+  "proportion",
+  "agregation", 
+  "infection.rate",
+  "nb.init",
+  # time
+  "year", 
+  # outputs
+  "t.for.crop.loss")
+
+
+
+## load 
+
+data.tforcroploss <- tibble(filename.tforcroploss) %>% 
+  mutate(file_contents = map(filename.tforcroploss, ~ read_delim(file.path(data_path, .), delim = " ", col_names = column.names.tforcroploss))) %>% 
+  unnest()
+```
+
+```{r comparison between proportions}
+
+# on veut ploter la distribution des t.for.crop.loss = durée pendant laquelle un crop patch est infecté avant qu'un prédateur n'arrive sur ce patch
+# on fait deux plots = 2 scénarios de proportion : faible (10%) VS fort (90%)
+# on s'attend à ce que :
+# à 90% les préd. arrivent très rapidement sur les patchs infectés car ils sont à proximité immédiate = occurences resserrées sur la gauche (faibles valeurs de durée)
+# à 10% la distribution soit + sur la droite et étalée (+ fortes valeurs de durée) car les prédateurs mettent plus de temps à trouver les patchs infectés
+
+plot1 <- data.tforcroploss %>%
+  select(proportion, agregation, nb.init, infection.rate, year, t.for.crop.loss) %>% 
+  # Scenario Low proportion
+  filter(proportion == 10) %>% 
+  # filter
+  filter(agregation == 5) %>% 
+  filter(infection.rate == 20) %>% 
+  filter(year == 5) %>% 
+  # group and count occ. for t.for.crop.loss
+  group_by(proportion, agregation, infection.rate, nb.init, t.for.crop.loss) %>% 
+  mutate(count.occ = n()) %>% 
+  distinct() %>% 
+  ungroup() %>% 
+  # plot
+  ggplot(aes(x=t.for.crop.loss, y=count.occ)) +
+  geom_bar(stat = "identity") +
+  # facets according to nb.init
+  facet_grid(nb.init ~ ., labeller = label_both) +
+  ggtitle("Low proportion = 10% (strong agreg., Year5, inf.rate20)")
+
+plot2 <- data.tforcroploss %>%
+  select(proportion, agregation, nb.init, infection.rate, year, t.for.crop.loss) %>% 
+  # Scenario High proportion
+  filter(proportion == 90) %>% 
+  # filter
+  filter(agregation == 5) %>% 
+  filter(infection.rate == 20) %>% 
+  filter(year == 5) %>% 
+  # group and count occ. for t.for.crop.loss
+  group_by(proportion, agregation, infection.rate, nb.init, t.for.crop.loss) %>% 
+  mutate(count.occ = n()) %>% 
+  distinct() %>% 
+  ungroup() %>% 
+  # plot
+  ggplot(aes(x=t.for.crop.loss, y=count.occ)) +
+  geom_bar(stat = "identity") +
+  # facets according to nb.init
+  facet_grid(nb.init ~ ., labeller = label_both) +
+  ggtitle("High proportion = 90% (strong agreg., Year5, inf.rate20)")
+
+multiplot(plot1, plot2, cols=2)
+```
+
+Comparaison des 2 plots = 2 scénarios de proportion d'éléments semi-naturels (Low = 10% VS High = 90%)
+
+A proportion = 10%
+
+- distribution assez étalée = durées plus longues entre infection et arrivée des prédateurs -> ceux-ci ont + de difficultés à trouver les patchs infectés
+- pas de différence selon le nb. initial de prédateurs dans la simul.
+
+A proportion = 90%
+
+- distribution + resserrée sur la gauche = durées + faibles -> les prédateurs trouvent + rapidement les patchs crops infectéss
+- pas non plus de différence selon le nb. initial de prédateurs dans la simul.
+
+## Proportion / inf.rate -> effet sur distribution de t.for.crop.loss ?
+
+Contrairement à la slide précédente :
+
+- on fixe nb init. -> 10 adults
+- plus de niveaux pour proportion
+- on facet aussi inf.rate
+
+```{r t.fror.crop.loss facets}
+
+# quel effet infection.rate / proportion sur les distributions de t.for.crop.loss ?
+# on reprend le code précédent, on fixe un nb.init (et l'agrégation, comme précédemment)
+# on facet sur infection.rate ~ proportion
+
+data.tforcroploss %>%
+  select(proportion, agregation, nb.init, infection.rate, year, t.for.crop.loss) %>% 
+  # filter
+  filter(year == 5) %>% 
+  filter(agregation == 5) %>% 
+  # on filtre ici un nb.init (contrairement au chunk précédent)
+  filter(nb.init == 10) %>% 
+  # group and count occ. for t.for.crop.loss
+  group_by(proportion, agregation, infection.rate, nb.init, t.for.crop.loss) %>% 
+  mutate(count.occ = n()) %>% 
+  distinct() %>% 
+  ungroup() %>% 
+  # filter for plot (reduce levels) -> pour rendre plus lisible le plot
+  filter(infection.rate %in% c(5,10,15,20)) %>% 
+  filter(proportion %in% c(10,30,50,70,90)) %>% 
+  # plot
+  ggplot(aes(x=t.for.crop.loss, y=count.occ)) +
+  geom_bar(stat = "identity") +
+  # facets 
+  facet_grid(infection.rate ~ proportion, labeller = label_both) +
+  ggtitle("Effet inf.rate / proportion sur la distribution de t.for.crop.loss (strong agregation, Y5, nb init 10)")
+```
+
+Remarque : on observe des pics à 0 et entre 0-5 pour inf.rate = 5 
+-> artefacts = inf.rate est trop faible pour infecter l'ensemble des crop patches et ils ont par défaut une valeur de t.for.crop.loss de 0, les valeurs entre 0-5 c'est parce que la simul. s'achève alors que les patchs sont dans leur période latente (5 en moyenne)
+-> il ne faut pas considérer ces valeurs entre 0-5 donc (je pourrai les enlever, je les ai laissé ici juste pour l'explication)
+
+- On retrouve l'effet de la proportion décrit précédemment (distribution se ressere vers la gauche lorsque proportion augmente)
+- A proportion = 10 la distribution est + étalée pour inf.rate = 20 / inf.rate = 5 -> + de patchs sont infectés à chaque tick alors que le nb de préds est limité 
+
+## crop loss
+
+```{r load data for crop.loss}
+
+## wd
+data_path <- "data/exp9"
+
+filename.totals <- list.files(data_path, 
+                              pattern="^totals-[0-9]{1,4}-[0-9]{1,2}-[0-9]{1,2}-[0-9]{1,2}.txt")
+
+column.names.totals <- c(
+  # par.
+  "infection.rate",
+  "proportion",
+  "agregation",
+  # time
+  "year",
+  # outputs
+  "crop.loss.1st",
+  "crop.loss",
+  "crop.save")
+
+data.totals <- tibble(filename.totals) %>% 
+  # load whole data
+  mutate(file_contents = map(filename.totals, ~ read_delim(file.path(data_path, .), delim = " ", col_names = column.names.totals))) %>% 
+  unnest()
+```
