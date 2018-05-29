@@ -1,0 +1,469 @@
+---
+title: "30 mai"
+author: "Antoine"
+date: \`r format(Sys.Date(), "%m %d,%Y")`\
+output:
+  slidy_presentation: default
+---
+
+```{r setup, include=FALSE}
+rm(list=ls())
+
+# packages
+library(tidyverse)
+library(DescTools)
+
+# options
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, fig.height = 6, fig.width = 13, fig.align = "center")
+```
+
+```{r multiplot function}
+
+# multiplot function : several ggplot on the same page
+
+multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
+  library(grid)
+
+  # Make a list from the ... arguments and plotlist
+  plots <- c(list(...), plotlist)
+
+  numPlots = length(plots)
+
+  # If layout is NULL, then use 'cols' to determine layout
+  if (is.null(layout)) {
+    # Make the panel
+    # ncol: Number of columns of plots
+    # nrow: Number of rows needed, calculated from # of cols
+    layout <- matrix(seq(1, cols * ceiling(numPlots/cols)),
+                    ncol = cols, nrow = ceiling(numPlots/cols))
+  }
+
+ if (numPlots==1) {
+    print(plots[[1]])
+
+  } else {
+    # Set up the page
+    grid.newpage()
+    pushViewport(viewport(layout = grid.layout(nrow(layout), ncol(layout))))
+
+    # Make each plot, in the correct location
+    for (i in 1:numPlots) {
+      # Get the i,j matrix positions of the regions that contain this subplot
+      matchidx <- as.data.frame(which(layout == i, arr.ind = TRUE))
+
+      print(plots[[i]], vp = viewport(layout.pos.row = matchidx$row,
+                                      layout.pos.col = matchidx$col))
+    }
+  }
+}
+```
+
+```{r load data}
+## wd
+data_path <- "data/inf-rate-4"
+
+## dyn
+filename.dyn <- list.files(data_path, 
+                           pattern="^tick-[0-9]{1,4}-[0-9]{1,2}-[0-9]{1,2}-[0-9]{1,2}.txt")
+
+column.names.dyn <- c(
+  # init.params
+  "infection.rate",
+  "proportion",
+  "agregation",
+  "proba.overwintering",
+  "nb.init",
+  "proba.birth",
+  # time
+  "year",
+  "tick",
+  # outputs
+  "nb.visited.patches",
+  "dyn.never.inf",
+  "dyn.inf",
+  "dyn.inf.non.occ",
+  "dyn.inf.occ",
+  "dyn.cured",
+  "dyn.adults",
+  "tot.inf.cur",
+  "dyn.curation")
+
+## load -> data.dyn contient toutes les données, y compris le control (nb.init 0 / proportion 0)
+
+data.dyn <- tibble(filename.dyn) %>% 
+  # load whole data
+  mutate(file_contents = map(filename.dyn, ~ read_delim(file.path(data_path, .), delim = " ", col_names = column.names.dyn))) %>% 
+  unnest()
+```
+
+# Traitement de plusieurs simulations
+
+## Dyn. inf . : variabilité entre simulations
+
+- Chaque config. : 10 simulations (1 couleur par simulation)
+- Valeurs = nb. de patches avec statut infecté
+
+
+```{r inf variance simul Y1 Y5}
+plotY1 <- data.dyn %>% 
+  # filter Y1
+  filter(year == 1) %>% 
+  # filter
+  filter(agregation == 5) %>% 
+  filter(nb.init == 10) %>% 
+  filter(infection.rate == 4) %>% 
+  ggplot() +
+  geom_point(aes(x = tick, y = dyn.inf, colour = filename.dyn)) +
+  facet_grid(. ~ proportion, labeller = label_both) +
+  # on enlève la légende (illisible)
+  guides(colour=FALSE)
+
+plotY5 <- data.dyn %>% 
+  # filter Y5
+  filter(year == 5) %>%
+  # filter
+  filter(agregation == 5) %>% 
+  filter(nb.init == 10) %>% 
+  filter(infection.rate == 4) %>% 
+  ggplot() +
+  geom_point(aes(x = tick, y = dyn.inf, colour = filename.dyn)) +
+  facet_grid(. ~ proportion, labeller = label_both) +
+  # on enlève la légende (illisible)
+  guides(colour=FALSE)
+
+multiplot(plotY1, plotY5, rows=2)
+```
+
+## Dyn. inf. : comparaisons entre mean et median : Year 1
+
+- dyn. inf. = taux de remplissage (normalisé par le nb. de crop patches)
+- mean / median sur les 10 simuls pour chaque config.
+
+```{r inf comparison mean median Y1}
+
+### mean
+
+data.dyn.mean <- data.dyn %>% 
+  # average dyn.inf : mean
+  group_by(infection.rate, proportion, agregation, nb.init, year, tick) %>% 
+  mutate(mean.inf = mean(dyn.inf)) %>% 
+  distinct(infection.rate, proportion, agregation, nb.init, year, tick, .keep_all = TRUE) %>% 
+  ungroup() %>% 
+  # classic data.dyn2
+  # select data we are interested in
+  select(- filename.dyn, - proba.birth, -proba.overwintering, - nb.visited.patches, - tot.inf.cur, - dyn.curation) %>%   
+  # tot crop patches in the landscape
+  mutate(stock.crops = 1089 - floor(1089*proportion/100)) %>% 
+  # % of landscape infected : average dyn.inf -> mean.inf
+  mutate(fill.level = mean.inf*100/stock.crops) %>%
+  # numeric -> factor (for ggplot)
+  mutate(infection.rate = factor(infection.rate)) %>% 
+  mutate(proportion = factor(proportion))
+
+plot.mean <- data.dyn.mean %>% 
+  # Y1
+  filter(year == 1) %>% 
+  # filter
+  filter(agregation == 5) %>% 
+  filter(nb.init == 10) %>% 
+  filter(infection.rate == 4) %>% 
+  ggplot() +
+  geom_point(aes(x = tick, y = fill.level)) +
+  facet_grid(. ~ proportion, labeller = label_both) +
+  ggtitle("Mean 10 simulations Y1")
+
+### median
+
+data.dyn.median <- data.dyn %>% 
+  # average dyn.inf : mean
+  group_by(infection.rate, proportion, agregation, nb.init, year, tick) %>% 
+  mutate(median.inf = median(dyn.inf)) %>% 
+  distinct(infection.rate, proportion, agregation, nb.init, year, tick, .keep_all = TRUE) %>% 
+  ungroup() %>% 
+  # classic data.dyn2
+  # select data we are interested in
+  select(- filename.dyn, - proba.birth, -proba.overwintering, - nb.visited.patches, - tot.inf.cur, - dyn.curation) %>%   
+  # tot crop patches in the landscape
+  mutate(stock.crops = 1089 - floor(1089*proportion/100)) %>% 
+  # % of landscape infected : average dyn.inf -> mean.inf
+  mutate(fill.level = median.inf*100/stock.crops) %>%
+  # numeric -> factor (for ggplot)
+  mutate(infection.rate = factor(infection.rate)) %>% 
+  mutate(proportion = factor(proportion))
+
+plot.median <- data.dyn.median %>% 
+  # Y1
+  filter(year == 1) %>% 
+  # filter
+  filter(agregation == 5) %>% 
+  filter(nb.init == 10) %>% 
+  filter(infection.rate == 4) %>% 
+  ggplot() +
+  geom_point(aes(x = tick, y = fill.level)) +
+  facet_grid(. ~ proportion, labeller = label_both) +
+  ggtitle("Median 10 simulations Y1")
+
+### multiplot comparison mean / median
+
+multiplot(plot.mean, plot.median, rows=2)
+```
+
+## Dyn. inf. : comparaisons entre mean et median : Year 5
+
+```{r inf comparison mean median Y5}
+
+### mean
+
+plot.mean <- data.dyn.mean %>% 
+  # Y5
+  filter(year == 5) %>% 
+  # filter
+  filter(agregation == 5) %>% 
+  filter(nb.init == 10) %>% 
+  filter(infection.rate == 4) %>% 
+  ggplot() +
+  geom_point(aes(x = tick, y = fill.level)) +
+  facet_grid(. ~ proportion, labeller = label_both) +
+  ggtitle("Mean 10 simulations Y5")
+
+### median
+
+plot.median <- data.dyn.median %>% 
+  # Y5
+  filter(year == 5) %>% 
+  # filter
+  filter(agregation == 5) %>% 
+  filter(nb.init == 10) %>% 
+  filter(infection.rate == 4) %>% 
+  ggplot() +
+  geom_point(aes(x = tick, y = fill.level)) +
+  facet_grid(. ~ proportion, labeller = label_both) +
+  ggtitle("Median 10 simulations Y5")
+
+### multiplot comparison mean / median
+
+multiplot(plot.mean, plot.median, rows=2)
+```
+
+## Dyn. pred. : variabilité entre simulations
+
+- Chaque config. : 10 simulations (1 couleur par simulation)
+- Valeurs = nb. de predators
+
+```{r pred variance simul Y1 Y5}
+plotY1 <- data.dyn %>% 
+  # filter Y1
+  filter(year == 1) %>% 
+  # filter
+  filter(agregation == 5) %>% 
+  filter(nb.init == 10) %>% 
+  filter(infection.rate == 4) %>% 
+  ggplot() +
+  geom_point(aes(x = tick, y = dyn.adults, colour = filename.dyn)) +
+  facet_grid(. ~ proportion, labeller = label_both) +
+  # on enlève la légende (illisible)
+  guides(colour=FALSE)
+
+plotY5 <- data.dyn %>% 
+  # filter Y5
+  filter(year == 5) %>%
+  # filter
+  filter(agregation == 5) %>% 
+  filter(nb.init == 10) %>% 
+  filter(infection.rate == 4) %>% 
+  ggplot() +
+  geom_point(aes(x = tick, y = dyn.adults, colour = filename.dyn)) +
+  facet_grid(. ~ proportion, labeller = label_both) +
+  # on enlève la légende (illisible)
+  guides(colour=FALSE)
+
+multiplot(plotY1, plotY5, rows=2)
+```
+
+
+## Dyn. pred. : comparaisons entre mean et median : Year 1
+
+- dyn. inf. = taux de remplissage (normalisé par le nb. de crop patches)
+- mean / median sur les 10 simuls pour chaque config.
+
+```{r pred comparison mean median Y1}
+
+### mean
+
+data.dyn.mean <- data.dyn %>% 
+  # average dyn.adults : mean
+  group_by(infection.rate, proportion, agregation, nb.init, year, tick) %>% 
+  mutate(mean.adults = mean(dyn.adults)) %>% 
+  distinct(infection.rate, proportion, agregation, nb.init, year, tick, .keep_all = TRUE) %>% 
+  ungroup() %>% 
+  # numeric -> factor (for ggplot)
+  mutate(infection.rate = factor(infection.rate)) %>% 
+  mutate(proportion = factor(proportion))
+
+plot.mean <- data.dyn.mean %>% 
+  # Y1
+  filter(year == 1) %>% 
+  # filter
+  filter(agregation == 5) %>% 
+  filter(nb.init == 10) %>% 
+  filter(infection.rate == 4) %>% 
+  ggplot() +
+  geom_point(aes(x = tick, y = mean.adults)) +
+  facet_grid(. ~ proportion, labeller = label_both) +
+  ggtitle("Mean 10 simulations Y1")
+
+### median
+
+data.dyn.median <- data.dyn %>% 
+  # average dyn.adults : mean
+  group_by(infection.rate, proportion, agregation, nb.init, year, tick) %>% 
+  mutate(median.adults = median(dyn.adults)) %>% 
+  distinct(infection.rate, proportion, agregation, nb.init, year, tick, .keep_all = TRUE) %>% 
+  ungroup() %>% 
+  # numeric -> factor (for ggplot)
+  mutate(infection.rate = factor(infection.rate)) %>% 
+  mutate(proportion = factor(proportion))
+
+plot.median <- data.dyn.median %>% 
+  # Y1
+  filter(year == 1) %>% 
+  # filter
+  filter(agregation == 5) %>% 
+  filter(nb.init == 10) %>% 
+  filter(infection.rate == 4) %>% 
+  ggplot() +
+  geom_point(aes(x = tick, y = median.adults)) +
+  facet_grid(. ~ proportion, labeller = label_both) +
+  ggtitle("Median 10 simulations Y1")
+
+### multiplot comparison mean / median
+
+multiplot(plot.mean, plot.median, rows=2)
+```
+
+## Dyn. pred. : comparaisons entre mean et median : Year 5
+
+```{r pred comparison mean median Y5}
+
+### mean
+
+plot.mean <- data.dyn.mean %>% 
+  # Y5
+  filter(year == 5) %>% 
+  # filter
+  filter(agregation == 5) %>% 
+  filter(nb.init == 10) %>% 
+  filter(infection.rate == 4) %>% 
+  ggplot() +
+  geom_point(aes(x = tick, y = mean.adults)) +
+  facet_grid(. ~ proportion, labeller = label_both) +
+  ggtitle("Mean 10 simulations Y5")
+
+### median
+
+plot.median <- data.dyn.median %>% 
+  # Y5
+  filter(year == 5) %>% 
+  # filter
+  filter(agregation == 5) %>% 
+  filter(nb.init == 10) %>% 
+  filter(infection.rate == 4) %>% 
+  ggplot() +
+  geom_point(aes(x = tick, y = median.adults)) +
+  facet_grid(. ~ proportion, labeller = label_both) +
+  ggtitle("Median 10 simulations Y5")
+
+### multiplot comparison mean / median
+
+multiplot(plot.mean, plot.median, rows=2)
+```
+
+# Inf. rate = 4
+
+```{r data.dyn.mean}
+
+# mean sur 10 simulations pour toutes les var. relatives à la dyn. des pests
+# -> en % pour normaliser par rapport au nb de crop patches
+
+data.dyn.mean <- data.dyn %>% 
+  # average : mean
+  group_by(infection.rate, proportion, agregation, nb.init, year, tick) %>% 
+  mutate(mean.inf = mean(dyn.inf)) %>% 
+  mutate(mean.never.inf = mean(dyn.never.inf)) %>% 
+  mutate(mean.inf.non.occ = mean(dyn.inf.non.occ)) %>% 
+  mutate(mean.inf.occ = mean(dyn.inf.occ)) %>% 
+  mutate(mean.cured = mean(dyn.cured)) %>% 
+  distinct(infection.rate, proportion, agregation, nb.init, year, tick, .keep_all = TRUE) %>% 
+  ungroup() %>% 
+  # select data we are interested in
+  select(- filename.dyn, - proba.birth, -proba.overwintering, - nb.visited.patches, - tot.inf.cur, - dyn.curation) %>%   
+  # tot crop patches in the landscape
+  mutate(stock.crops = 1089 - floor(1089*proportion/100)) %>% 
+  # % of landscape infected (fl = fill level)
+  mutate(fl.inf = mean.inf*100/stock.crops) %>%
+  # % of landscape never infected
+  mutate(fl.never.inf = mean.never.inf*100/stock.crops) %>%
+  # % of landscape infected patches without predators (adults / juveniles)
+  mutate(fl.non.occ = mean.inf.non.occ*100/stock.crops) %>%
+  # % of landscape infected crop patches with predators (adults / juveniles)
+  mutate(fl.occ = mean.inf.occ*100/stock.crops) %>%
+  # % of landscape infected ad then cured
+  mutate(fl.cured = mean.cured*100/stock.crops) %>%
+  # numeric -> factor (for ggplot)
+  mutate(infection.rate = factor(infection.rate)) %>% 
+  mutate(proportion = factor(proportion))
+```
+
+## Dyn. inf. 
+
+```{r inf without pred VS inf with pred}
+data.dyn.mean %>% 
+  # control
+  filter(nb.init == 0) %>% 
+  filter(agregation == 5) %>%
+  filter(year == 5) %>% 
+  filter(infection.rate == 4) %>% 
+  # plot
+  ggplot() +
+  # control
+  geom_point(mapping = aes(x = tick, y = fl.inf, colour = "Inf. without pred."),
+             size = 0.5) + 
+  # data (= with pred)
+  ## inf.
+  geom_point(data = data.dyn.mean %>% 
+               # même filtre que control
+               filter(agregation == 5) %>%
+               filter(year == 5) %>%
+               filter(infection.rate == 4) %>% 
+               # on rajoute un filtre sur nb.init (plusieurs modalités possibles dans le jeu)
+               filter(nb.init == 10),
+             mapping = aes(x = tick, y = fl.inf, colour = "Inf. with pred."),
+             size = 0.5) + 
+  ylab("Percentage of crops infected with pests") +
+  facet_grid(infection.rate ~ proportion, labeller = label_both) +
+  ggtitle("Dynamic of crop patches with pests \nMean 10 simul, Agregation = 5, Year = 5, nb init pred = 10")
+```
+
+## Découpage occ. VS non.occ
+
+```{r never inf VS occ VS non.occ VS cured}
+data.dyn.mean %>% 
+  # control
+  filter(nb.init == 10) %>% 
+  filter(agregation == 5) %>%
+  filter(year == 5) %>% 
+  filter(infection.rate == 4) %>% 
+  # plot
+  ggplot() +
+  geom_point(mapping = aes(x = tick, y = fl.never.inf, colour = "Never inf."),
+             size = 0.5) + 
+  geom_point(mapping = aes(x = tick, y = fl.non.occ, colour = "Inf. non.occ"),
+             size = 0.5) + 
+  geom_point(mapping = aes(x = tick, y = fl.occ, colour = "Inf. occ."),
+             size = 0.5) + 
+  geom_point(mapping = aes(x = tick, y = fl.cured, colour = "Cured"),
+             size = 0.5) + 
+  ylab("Percentage of crops infected with pests") +
+  facet_grid(. ~ proportion, labeller = label_both) +
+  ggtitle("Dynamic of crop patches with pests \nMean 10 simul, Agregation = 5, Year = 5, nb init pred = 10")
+```
