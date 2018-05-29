@@ -12,6 +12,8 @@ rm(list=ls())
 # packages
 library(tidyverse)
 library(DescTools)
+library(tis)
+
 
 # options
 knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, fig.height = 6, fig.width = 13, fig.align = "center")
@@ -448,7 +450,7 @@ data.dyn.mean %>%
 
 ```{r never inf VS occ VS non.occ VS cured}
 data.dyn.mean %>% 
-  # control
+  # filter
   filter(nb.init == 10) %>% 
   filter(agregation == 5) %>%
   filter(year == 5) %>% 
@@ -466,4 +468,54 @@ data.dyn.mean %>%
   ylab("Percentage of crops infected with pests") +
   facet_grid(. ~ proportion, labeller = label_both) +
   ggtitle("Dynamic of crop patches with pests \nMean 10 simul, Agregation = 5, Year = 5, nb init pred = 10")
+```
+
+## AUDPC
+
+```{r AUDPC}
+# 2 plots pour être + lisible
+# plot.audpc1 -> audpc croissantes ou décroissantes strictement
+# plot.audoc2 -> audpc non monotones
+
+plot.audpc1 <- data.dyn.mean %>% 
+  filter(nb.init == 10) %>% 
+  filter(agregation == 5) %>%
+  filter(year == 5) %>% 
+  filter(infection.rate == 4) %>% 
+  select(year, tick, proportion, fl.inf, fl.never.inf, fl.non.occ, fl.occ, fl.cured) %>% 
+  # compute audpc for every inf.
+  group_by(proportion) %>% 
+  mutate(audpc.inf = sum(lintegrate(tick, fl.inf, xint=tick))) %>%
+  mutate(audpc.never.inf = sum(lintegrate(tick, fl.never.inf, xint=tick))) %>% 
+  mutate(audpc.non.occ = sum(lintegrate(tick, fl.non.occ, xint=tick))) %>% 
+  mutate(audpc.occ = sum(lintegrate(tick, fl.occ, xint=tick))) %>% 
+  mutate(audpc.cured = sum(lintegrate(tick, fl.cured, xint=tick))) %>% 
+  # plot according to proportion
+  ggplot() +
+  geom_point(aes(x = proportion, y = audpc.never.inf, colour = "audpc never inf.")) +
+  geom_point(aes(x = proportion, y = audpc.cured, colour = "audpc cured")) +
+  ggtitle("AUDPCs \nMean 10 simul, Agregation = 5, Year = 5, nb init pred = 10")
+
+plot.audpc2 <- data.dyn.mean %>% 
+  filter(nb.init == 10) %>% 
+  filter(agregation == 5) %>%
+  filter(year == 5) %>% 
+  filter(infection.rate == 4) %>% 
+  select(year, tick, proportion, fl.inf, fl.never.inf, fl.non.occ, fl.occ, fl.cured) %>% 
+  # compute audpc for every inf.
+  group_by(proportion) %>% 
+  mutate(audpc.inf = sum(lintegrate(tick, fl.inf, xint=tick))) %>%
+  mutate(audpc.never.inf = sum(lintegrate(tick, fl.never.inf, xint=tick))) %>% 
+  mutate(audpc.non.occ = sum(lintegrate(tick, fl.non.occ, xint=tick))) %>% 
+  mutate(audpc.occ = sum(lintegrate(tick, fl.occ, xint=tick))) %>% 
+  mutate(audpc.cured = sum(lintegrate(tick, fl.cured, xint=tick))) %>% 
+  # plot according to proportion
+  ggplot() +
+  geom_point(aes(x = proportion, y = audpc.inf, colour = "audpc inf.")) +
+  geom_point(aes(x = proportion, y = audpc.non.occ, colour = "audpc non occ.")) +
+  geom_point(aes(x = proportion, y = audpc.occ, colour = "audpc occ.")) +
+  ggtitle("AUDPCs \nMean 10 simul, Agregation = 5, Year = 5, nb init pred = 10")
+
+multiplot(plot.audpc1, plot.audpc2, cols = 2)
+
 ```
