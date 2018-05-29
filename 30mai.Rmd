@@ -382,6 +382,17 @@ multiplot(plot.mean, plot.median, rows=2)
 
 # Inf. rate = 4
 
+## Expérience
+
+- infection-rate = 4
+- 10 simulations -> mean
+
+- 5 years
+- agregation 1/5
+- proportion 0-10-90
+- nb. init. : 0/5/10
+- proba.mortality 0.1
+
 ```{r data.dyn.mean}
 
 # mean sur 10 simulations pour toutes les var. relatives à la dyn. des pests
@@ -395,6 +406,8 @@ data.dyn.mean <- data.dyn %>%
   mutate(mean.inf.non.occ = mean(dyn.inf.non.occ)) %>% 
   mutate(mean.inf.occ = mean(dyn.inf.occ)) %>% 
   mutate(mean.cured = mean(dyn.cured)) %>% 
+  # adults
+  mutate(mean.adults = mean(dyn.adults)) %>% 
   distinct(infection.rate, proportion, agregation, nb.init, year, tick, .keep_all = TRUE) %>% 
   ungroup() %>% 
   # select data we are interested in
@@ -441,7 +454,7 @@ data.dyn.mean %>%
                filter(nb.init == 10),
              mapping = aes(x = tick, y = fl.inf, colour = "Inf. with pred."),
              size = 0.5) + 
-  ylab("Percentage of crops infected with pests") +
+  ylab("Percentage of crops") +
   facet_grid(infection.rate ~ proportion, labeller = label_both) +
   ggtitle("Dynamic of crop patches with pests \nMean 10 simul, Agregation = 5, Year = 5, nb init pred = 10")
 ```
@@ -465,14 +478,14 @@ data.dyn.mean %>%
              size = 0.5) + 
   geom_point(mapping = aes(x = tick, y = fl.cured, colour = "Cured"),
              size = 0.5) + 
-  ylab("Percentage of crops infected with pests") +
+  ylab("Percentage of crops") +
   facet_grid(. ~ proportion, labeller = label_both) +
   ggtitle("Dynamic of crop patches with pests \nMean 10 simul, Agregation = 5, Year = 5, nb init pred = 10")
 ```
 
-## AUDPC
+## AUDPCs
 
-```{r AUDPC}
+```{r AUDPCs}
 # 2 plots pour être + lisible
 # plot.audpc1 -> audpc croissantes ou décroissantes strictement
 # plot.audoc2 -> audpc non monotones
@@ -517,5 +530,204 @@ plot.audpc2 <- data.dyn.mean %>%
   ggtitle("AUDPCs \nMean 10 simul, Agregation = 5, Year = 5, nb init pred = 10")
 
 multiplot(plot.audpc1, plot.audpc2, cols = 2)
+
+```
+
+## Occ. VS non.occ VS adults
+
+```{r occ VS non occ VS adults}
+data.dyn.mean %>% 
+  # inf.rate 4
+  filter(infection.rate == 4) %>% 
+  # filter
+  filter(nb.init == 10) %>% 
+  filter(agregation == 5) %>%
+  filter(year == 5) %>% 
+  # plot
+  ggplot() +
+  ## inf. non.occ
+  geom_point(mapping = aes(x = tick, y = fl.inf, colour = "Inf."),
+            size = 0.5) + 
+  # dyn. adults
+  geom_point(mapping = aes(x = tick, y = mean.adults * 100 / (max(mean.adults)+10), colour = "Mean nb. adults"),
+            size = 0.5) + 
+  # y = double axe -> à gauche : taux de remplissage / à droite : dyn. pests et adults
+  scale_y_continuous(name = expression("Percentage of infected crops"), #left axis
+                     sec.axis = sec_axis(~ . * (max(data.dyn.mean$mean.adults)+10) / 100 , name = "Nb. of pred. adults"), # right axis
+                     limits = c(0, 100)) +
+  # facets
+  facet_grid(. ~ proportion, labeller = label_both) +
+  ggtitle("Inf. & preds. \n Agregation = 5, Year = 5, nb init pred = 10)")
+```
+
+## Distribution
+
+```{r load data distribution time for crop loss}
+data_path <- "data/exp25mai"
+
+## dyn
+filename.pred.event <- list.files(data_path, 
+                           pattern="^pred-event-[0-9]{1,4}-[0-9]{1,2}-[0-9]{1,2}-[0-9]{1,2}.txt")
+
+column.names.tforcroploss <- c(
+  # par.
+  "proportion",
+  "agregation", 
+  "infection.rate",
+  "nb.init",
+  # time
+  "year", 
+  "tick",
+  # outputs
+  "event",
+  "pxcor",
+  "pycor",
+  "infection-date",
+  "t.for.crop.loss")
+
+
+## load 
+
+data.tforcroploss <- tibble(filename.pred.event) %>% 
+  mutate(file_contents = map(filename.pred.event, ~ read_delim(file.path(data_path, .), delim = " ", col_names = column.names.tforcroploss))) %>% 
+  unnest()
+```
+
+2 scénarios de proportion :
+
+- faible proportion = 10% de SNH -> hyp. : distribution étalée
+- forte proportion = 90% de SNH -> hyp. : distribution + resserrée vers faibles valeurs
+
+```{r plot time.for.crop.loss 2 scenarios proportion}
+plot1 <- data.tforcroploss %>%
+  select(proportion, agregation, nb.init, infection.rate, year, t.for.crop.loss) %>% 
+  # inf.rate = 4
+  filter(infection.rate == 4) %>% 
+  # Scenario Low proportion
+  filter(proportion == 10) %>% 
+  # filter
+  filter(agregation == 5) %>% 
+  filter(year == 5) %>% 
+  filter(nb.init == 10) %>% 
+  # group and count occ. for t.for.crop.loss
+  group_by(proportion, agregation, infection.rate, nb.init, t.for.crop.loss) %>% 
+  mutate(count.occ = n()) %>% 
+  distinct() %>% 
+  ungroup() %>% 
+  # plot
+  ggplot() +
+  geom_bar(aes(x=t.for.crop.loss, y=count.occ), 
+           stat = "identity") +  
+  xlab("Time between pest and predator arrivals") +
+  ylab("Nb. of occurences") +
+  ggtitle("Low proportion = 10% \nAgregation = 5, Year = 5, inf.rate = 4, nb.init = 10")
+
+plot2 <- data.tforcroploss %>%
+  select(proportion, agregation, nb.init, infection.rate, year, t.for.crop.loss) %>% 
+  # inf.rate = 4
+  filter(infection.rate == 4) %>% 
+  # Scenario High proportion
+  filter(proportion == 90) %>% 
+  # filter
+  filter(agregation == 5) %>% 
+  filter(year == 5) %>% 
+  filter(nb.init == 10) %>% 
+  # group and count occ. for t.for.crop.loss
+  group_by(proportion, agregation, infection.rate, nb.init, t.for.crop.loss) %>% 
+  mutate(count.occ = n()) %>% 
+  distinct() %>% 
+  ungroup() %>% 
+  # plot
+  ggplot() +
+  geom_bar(aes(x=t.for.crop.loss, y=count.occ), 
+           stat = "identity") +
+  xlab("Time between pest and predator arrivals") +
+  ylab("Nb. of occurences") +
+  ggtitle("High proportion = 90% \nAgregation = 5, Year = 5, inf.rate = 4, nb.init = 10")
+
+multiplot(plot1, plot2, cols=2)
+```
+
+## crop loss
+
+```{r load data crop.loss landscape}
+data_path <- "data/inf-rate-4"
+
+## dyn
+filename.end.season <- list.files(data_path, 
+                                  pattern="^end-season-[0-9]{1,4}-[0-9]{1,2}-[0-9]{1,2}-[0-9]{1,2}.txt")
+
+column.names.end.season <- c(
+  # par.
+  "infection.rate",
+  "proportion",
+  "agregation", 
+  "nb.init",
+  # time
+  "year", 
+  # outputs
+  "lsc.tot.crop.loss")
+
+## load 
+
+data.end.season <- tibble(filename.end.season) %>% 
+  mutate(file_contents = map(filename.end.season, ~ read_delim(file.path(data_path, .), delim = " ", col_names = column.names.end.season))) %>% 
+  unnest()
+```
+
+```{r mean data crop.loss landscape}
+# on a 10 simulations par cnfig -> mean(10 values of crop.loss)
+data.end.season.mean <- data.end.season %>% 
+  group_by(infection.rate, proportion, agregation, nb.init, year) %>% 
+  mutate(mean.lsc.tot.crop.loss = mean(lsc.tot.crop.loss)) %>% 
+  select(-filename.end.season) %>% 
+  distinct()
+```
+
+```{r plot crop.loss landscape}
+# non-normalisé VS normalisé (par le stock total de crop patches)
+plot1 <- data.end.season.mean %>% 
+  # inf.rate = 4
+  filter(infection.rate == 4) %>% 
+  # filter
+  filter(agregation == 5) %>% 
+  filter(nb.init == 10) %>% 
+  filter(year == 5) %>% 
+  # plot
+  ggplot() +
+  geom_point(mapping = aes(x = proportion, y = mean.lsc.tot.crop.loss)) +
+  scale_x_continuous(name = expression("Proportion"), 
+                     breaks = seq(0,90,10),
+                     labels = as.character(seq(0,90,10)),
+                     limits = c(0, 90)) + # les ticks qui nous intéressent
+  ylab("Total crop loss (mean)") +
+  ggtitle("Total crop-loss for the whole landscape \nAgregation = 5, Year = 5, nb. init. = 10")
+
+plot2 <- data.end.season.mean %>% 
+  # normalisation crop-loss selon le nb. de crops
+  mutate(stock.crops = 1089 - floor(1089*proportion/100)) %>% 
+  mutate(norm.mean.lsc.tot.crop.loss = mean.lsc.tot.crop.loss/stock.crops) %>% 
+  # inf.rate = 4
+  filter(infection.rate == 4) %>% 
+  #filter
+  filter(agregation == 5) %>% 
+  filter(nb.init == 10) %>% 
+  filter(year == 5) %>% 
+  # plot
+  ggplot() +
+  geom_point(mapping = aes(x = proportion, y = norm.mean.lsc.tot.crop.loss)) +
+  scale_x_continuous(name = expression("Proportion"), 
+                     breaks = seq(0,90,10),
+                     labels = as.character(seq(0,90,10)),
+                     limits = c(0, 90)) + # les ticks qui nous intéressent
+  ylab("crop-loss per crop patch") +
+  ggtitle("Total crop-loss (landscape) / total nb. of crop patches \nAgregation = 5, Year = 5, nb. init. = 10")
+
+multiplot(plot1, plot2, cols=2)
+```
+
+## crop-loss VS nb. of adults at the beginning of the season
+
+```{r plot crop.loss landscape VS nb. beginnning season}
 
 ```
