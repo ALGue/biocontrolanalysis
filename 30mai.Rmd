@@ -60,6 +60,41 @@ multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
 }
 ```
 
+## Expérience
+
+- infection-rate = 4
+- 10 simulations -> mean
+
+- 5 years
+- agregation 1/5
+- proportion 0-10-90
+- nb. init. : 0/5/10
+- proba.mortality 0.1
+
+## Hyp
+
+A inf.rate fixé
+
+Scenario : faible proportion
+
+- crops + nbreux -> crop-loss abs. augmente
+- distribution étalée des infection-date 
+- pred. - nbreux au départ 
+- pred + éloignés des crops infectés tant que ceux-ci ne sont pas trop nbreux (VS scenario high proportion)
+
+Scenario : forte proportion
+
+- crops - nbreux
+- crops infectés très tôt
+- capacité de préd. + forte dans le paysage (notamment à Y5, à comparer avec Y1 où cet effet ne joue pas)
+- pred - éloignés (VS scenario faible proportion) des crops infectés
+
+A forte proportion :
+
+- arrivées + précoces des pred. sur les crops infectés
+- crop-loss absolues - fortes (- de crops, + vite régulés, mais contrebalancés par date d'infection précoce ?) 
+
+
 ```{r load data dyn.}
 ## wd
 data_path <- "data/inf-rate-4"
@@ -97,301 +132,6 @@ data.dyn <- tibble(filename.dyn) %>%
   mutate(file_contents = map(filename.dyn, ~ read_delim(file.path(data_path, .), delim = " ", col_names = column.names.dyn))) %>% 
   unnest()
 ```
-
-# Traitement de plusieurs simulations
-
-## Dyn. inf . : variabilité entre simulations
-
-- Chaque config. : 10 simulations (1 couleur par simulation)
-- Valeurs = nb. de patches avec statut infecté
-
-
-```{r inf variance simul Y1 Y5}
-plotY1 <- data.dyn %>% 
-  # filter Y1
-  filter(year == 1) %>% 
-  # filter
-  filter(agregation == 5) %>% 
-  filter(nb.init == 10) %>% 
-  filter(infection.rate == 4) %>% 
-  ggplot() +
-  geom_point(aes(x = tick, y = dyn.inf, colour = filename.dyn)) +
-  facet_grid(. ~ proportion, labeller = label_both) +
-  # on enlève la légende (illisible)
-  guides(colour=FALSE)
-
-plotY5 <- data.dyn %>% 
-  # filter Y5
-  filter(year == 5) %>%
-  # filter
-  filter(agregation == 5) %>% 
-  filter(nb.init == 10) %>% 
-  filter(infection.rate == 4) %>% 
-  ggplot() +
-  geom_point(aes(x = tick, y = dyn.inf, colour = filename.dyn)) +
-  facet_grid(. ~ proportion, labeller = label_both) +
-  # on enlève la légende (illisible)
-  guides(colour=FALSE)
-
-multiplot(plotY1, plotY5, rows=2)
-```
-
-## Dyn. inf. : comparaisons entre mean et median : Year 1
-
-- dyn. inf. = taux de remplissage (normalisé par le nb. de crop patches)
-- mean / median sur les 10 simuls pour chaque config.
-
-```{r inf comparison mean median Y1}
-
-### mean
-
-data.dyn.mean <- data.dyn %>% 
-  # average dyn.inf : mean
-  group_by(infection.rate, proportion, agregation, nb.init, year, tick) %>% 
-  mutate(mean.inf = mean(dyn.inf)) %>% 
-  distinct(infection.rate, proportion, agregation, nb.init, year, tick, .keep_all = TRUE) %>% 
-  ungroup() %>% 
-  # classic data.dyn2
-  # select data we are interested in
-  select(- filename.dyn, - proba.birth, -proba.overwintering, - nb.visited.patches, - tot.inf.cur, - dyn.curation) %>%   
-  # tot crop patches in the landscape
-  mutate(stock.crops = 1089 - floor(1089*proportion/100)) %>% 
-  # % of landscape infected : average dyn.inf -> mean.inf
-  mutate(fill.level = mean.inf*100/stock.crops) %>%
-  # numeric -> factor (for ggplot)
-  mutate(infection.rate = factor(infection.rate)) %>% 
-  mutate(proportion = factor(proportion))
-
-plot.mean <- data.dyn.mean %>% 
-  # Y1
-  filter(year == 1) %>% 
-  # filter
-  filter(agregation == 5) %>% 
-  filter(nb.init == 10) %>% 
-  filter(infection.rate == 4) %>% 
-  ggplot() +
-  geom_point(aes(x = tick, y = fill.level)) +
-  facet_grid(. ~ proportion, labeller = label_both) +
-  ggtitle("Mean 10 simulations Y1")
-
-### median
-
-data.dyn.median <- data.dyn %>% 
-  # average dyn.inf : mean
-  group_by(infection.rate, proportion, agregation, nb.init, year, tick) %>% 
-  mutate(median.inf = median(dyn.inf)) %>% 
-  distinct(infection.rate, proportion, agregation, nb.init, year, tick, .keep_all = TRUE) %>% 
-  ungroup() %>% 
-  # classic data.dyn2
-  # select data we are interested in
-  select(- filename.dyn, - proba.birth, -proba.overwintering, - nb.visited.patches, - tot.inf.cur, - dyn.curation) %>%   
-  # tot crop patches in the landscape
-  mutate(stock.crops = 1089 - floor(1089*proportion/100)) %>% 
-  # % of landscape infected : average dyn.inf -> mean.inf
-  mutate(fill.level = median.inf*100/stock.crops) %>%
-  # numeric -> factor (for ggplot)
-  mutate(infection.rate = factor(infection.rate)) %>% 
-  mutate(proportion = factor(proportion))
-
-plot.median <- data.dyn.median %>% 
-  # Y1
-  filter(year == 1) %>% 
-  # filter
-  filter(agregation == 5) %>% 
-  filter(nb.init == 10) %>% 
-  filter(infection.rate == 4) %>% 
-  ggplot() +
-  geom_point(aes(x = tick, y = fill.level)) +
-  facet_grid(. ~ proportion, labeller = label_both) +
-  ggtitle("Median 10 simulations Y1")
-
-### multiplot comparison mean / median
-
-multiplot(plot.mean, plot.median, rows=2)
-```
-
-## Dyn. inf. : comparaisons entre mean et median : Year 5
-
-```{r inf comparison mean median Y5}
-
-### mean
-
-plot.mean <- data.dyn.mean %>% 
-  # Y5
-  filter(year == 5) %>% 
-  # filter
-  filter(agregation == 5) %>% 
-  filter(nb.init == 10) %>% 
-  filter(infection.rate == 4) %>% 
-  ggplot() +
-  geom_point(aes(x = tick, y = fill.level)) +
-  facet_grid(. ~ proportion, labeller = label_both) +
-  ggtitle("Mean 10 simulations Y5")
-
-### median
-
-plot.median <- data.dyn.median %>% 
-  # Y5
-  filter(year == 5) %>% 
-  # filter
-  filter(agregation == 5) %>% 
-  filter(nb.init == 10) %>% 
-  filter(infection.rate == 4) %>% 
-  ggplot() +
-  geom_point(aes(x = tick, y = fill.level)) +
-  facet_grid(. ~ proportion, labeller = label_both) +
-  ggtitle("Median 10 simulations Y5")
-
-### multiplot comparison mean / median
-
-multiplot(plot.mean, plot.median, rows=2)
-```
-
-## Dyn. pred. : variabilité entre simulations
-
-- Chaque config. : 10 simulations (1 couleur par simulation)
-- Valeurs = nb. de predators
-
-```{r pred variance simul Y1 Y5}
-plotY1 <- data.dyn %>% 
-  # filter Y1
-  filter(year == 1) %>% 
-  # filter
-  filter(agregation == 5) %>% 
-  filter(nb.init == 10) %>% 
-  filter(infection.rate == 4) %>% 
-  ggplot() +
-  geom_point(aes(x = tick, y = dyn.adults, colour = filename.dyn)) +
-  facet_grid(. ~ proportion, labeller = label_both) +
-  # on enlève la légende (illisible)
-  guides(colour=FALSE)
-
-plotY5 <- data.dyn %>% 
-  # filter Y5
-  filter(year == 5) %>%
-  # filter
-  filter(agregation == 5) %>% 
-  filter(nb.init == 10) %>% 
-  filter(infection.rate == 4) %>% 
-  ggplot() +
-  geom_point(aes(x = tick, y = dyn.adults, colour = filename.dyn)) +
-  facet_grid(. ~ proportion, labeller = label_both) +
-  # on enlève la légende (illisible)
-  guides(colour=FALSE)
-
-multiplot(plotY1, plotY5, rows=2)
-```
-
-
-## Dyn. pred. : comparaisons entre mean et median : Year 1
-
-- dyn. inf. = taux de remplissage (normalisé par le nb. de crop patches)
-- mean / median sur les 10 simuls pour chaque config.
-
-```{r pred comparison mean median Y1}
-
-### mean
-
-data.dyn.mean <- data.dyn %>% 
-  # average dyn.adults : mean
-  group_by(infection.rate, proportion, agregation, nb.init, year, tick) %>% 
-  mutate(mean.adults = mean(dyn.adults)) %>% 
-  distinct(infection.rate, proportion, agregation, nb.init, year, tick, .keep_all = TRUE) %>% 
-  ungroup() %>% 
-  # numeric -> factor (for ggplot)
-  mutate(infection.rate = factor(infection.rate)) %>% 
-  mutate(proportion = factor(proportion))
-
-plot.mean <- data.dyn.mean %>% 
-  # Y1
-  filter(year == 1) %>% 
-  # filter
-  filter(agregation == 5) %>% 
-  filter(nb.init == 10) %>% 
-  filter(infection.rate == 4) %>% 
-  ggplot() +
-  geom_point(aes(x = tick, y = mean.adults)) +
-  facet_grid(. ~ proportion, labeller = label_both) +
-  ggtitle("Mean 10 simulations Y1")
-
-### median
-
-data.dyn.median <- data.dyn %>% 
-  # average dyn.adults : mean
-  group_by(infection.rate, proportion, agregation, nb.init, year, tick) %>% 
-  mutate(median.adults = median(dyn.adults)) %>% 
-  distinct(infection.rate, proportion, agregation, nb.init, year, tick, .keep_all = TRUE) %>% 
-  ungroup() %>% 
-  # numeric -> factor (for ggplot)
-  mutate(infection.rate = factor(infection.rate)) %>% 
-  mutate(proportion = factor(proportion))
-
-plot.median <- data.dyn.median %>% 
-  # Y1
-  filter(year == 1) %>% 
-  # filter
-  filter(agregation == 5) %>% 
-  filter(nb.init == 10) %>% 
-  filter(infection.rate == 4) %>% 
-  ggplot() +
-  geom_point(aes(x = tick, y = median.adults)) +
-  facet_grid(. ~ proportion, labeller = label_both) +
-  ggtitle("Median 10 simulations Y1")
-
-### multiplot comparison mean / median
-
-multiplot(plot.mean, plot.median, rows=2)
-```
-
-## Dyn. pred. : comparaisons entre mean et median : Year 5
-
-```{r pred comparison mean median Y5}
-
-### mean
-
-plot.mean <- data.dyn.mean %>% 
-  # Y5
-  filter(year == 5) %>% 
-  # filter
-  filter(agregation == 5) %>% 
-  filter(nb.init == 10) %>% 
-  filter(infection.rate == 4) %>% 
-  ggplot() +
-  geom_point(aes(x = tick, y = mean.adults)) +
-  facet_grid(. ~ proportion, labeller = label_both) +
-  ggtitle("Mean 10 simulations Y5")
-
-### median
-
-plot.median <- data.dyn.median %>% 
-  # Y5
-  filter(year == 5) %>% 
-  # filter
-  filter(agregation == 5) %>% 
-  filter(nb.init == 10) %>% 
-  filter(infection.rate == 4) %>% 
-  ggplot() +
-  geom_point(aes(x = tick, y = median.adults)) +
-  facet_grid(. ~ proportion, labeller = label_both) +
-  ggtitle("Median 10 simulations Y5")
-
-### multiplot comparison mean / median
-
-multiplot(plot.mean, plot.median, rows=2)
-```
-
-# Inf. rate = 4
-
-## Expérience
-
-- infection-rate = 4
-- 10 simulations -> mean
-
-- 5 years
-- agregation 1/5
-- proportion 0-10-90
-- nb. init. : 0/5/10
-- proba.mortality 0.1
 
 ```{r data.dyn.mean}
 
@@ -549,8 +289,21 @@ data.spatial.mean <- data.spatial %>%
   ungroup()
 ```
 
+## Tous les crops sont-ils à un moment infecté ?
 
-## Dyn. inf. 
+```{r how many crops infected at least once}
+
+tibble(proportion = seq(0,90,10), stock.crops = round(1089 -(1089 * proportion/100),0)) %>% 
+  mutate(tot = ifelse (stock.crops > 600, 600, stock.crops)) %>% 
+  mutate(fl = tot/stock.crops*100) %>% 
+  ggplot() +
+  geom_point(mapping = aes(x = as.factor(proportion), y = fl)) +
+  xlab("proportion") +
+  ylab("% of crops which have been infected at least once") +
+  ggtitle("How many crops have been infected at least once ?")
+```
+
+## Dyn. nb. crops avec statut infecté (sans / avec régul.)
 
 ```{r inf without pred VS inf with pred}
 data.dyn.mean %>% 
@@ -583,23 +336,92 @@ data.dyn.mean %>%
 ## Max. infection = nb. max de crop patches infectés
 
 ```{r max. inf.}
-data.dyn.mean %>% 
+data.max.inf <- data.dyn.mean %>% 
   select(infection.rate, proportion, agregation, nb.init, year, mean.inf) %>% 
+  group_by(infection.rate, proportion, agregation, nb.init, year,proportion) %>% 
+  mutate(max.mean.inf = max(mean.inf)) %>% 
+  select(- mean.inf) %>% 
+  distinct() %>% 
+  ungroup()
+
+data.max.inf %>% 
   # inf.rate = 4
   filter(infection.rate == 4) %>% 
   # filter
   filter(nb.init == 10) %>% 
   filter(agregation == 5) %>%
   filter(year == 5) %>% 
-  group_by(proportion) %>% 
-  mutate(max.mean.inf = max(mean.inf)) %>% 
-  select(- mean.inf) %>% 
-  distinct() %>% 
   # plot according to proportion
   ggplot() +
-  geom_point(aes(x = proportion, y = max.mean.inf, colour = "max.mean.inf")) +
+  geom_point(mapping = aes(x = proportion, y = max.mean.inf, colour = "max nb. infected crops")) +
+  geom_point(data = data.max.inf %>% 
+               # inf.rate = 4
+               filter(infection.rate == 4) %>% 
+               # filter
+               filter(nb.init == 0) %>% 
+               filter(agregation == 5) %>%
+               filter(year == 5), 
+             mapping = aes(x = proportion, y = max.mean.inf, colour = "control nb.init 0")) +
+  geom_line(data = tibble(proportion = seq(0,90,10), stock.crops = floor(1089 - (seq(0,90,10)/100)*1089)),
+             mapping = aes(x = as.factor(proportion), y = stock.crops, colour = "saturation",  group = 1)) +
   ylab("Max. infected crop patches") +
   ggtitle("Max. infection (nb. infected crop patches) \nMean 10 simul, Agregation = 5, Year = 5, nb init pred = 10")
+```
+
+## audpc between control (nb.init 0) and inf. with regulation
+
+```{r audpc between control (nb.init 0) and inf. with regulation}
+data.audpc.inf.control <- data.dyn.mean %>% 
+  select(infection.rate, proportion, agregation, nb.init, year, tick, fl.inf) %>% 
+  group_by(infection.rate, proportion, agregation, nb.init, year) %>% 
+  mutate(audpc.inf = sum(lintegrate(tick, fl.inf, xint=tick))) %>%
+  ungroup() %>% 
+  select(-fl.inf) %>% 
+  distinct()
+
+data.audpc.inf.control %>% 
+  # inf.rate = 4
+  filter(infection.rate == 4) %>% 
+  # filter
+  filter(nb.init == 10) %>% 
+  filter(agregation == 5) %>%
+  filter(year == 5) %>% 
+  # plot according to proportion
+  ggplot() +
+  geom_point(mapping = aes(x = proportion, y = audpc.inf, colour = "audpc inf with regul.")) +
+  geom_point(data = data.audpc.inf.control %>% 
+               # inf.rate = 4
+               filter(infection.rate == 4) %>% 
+               # filter
+               filter(nb.init == 0) %>% 
+               filter(agregation == 5) %>%
+               filter(year == 5),
+             mapping = aes(x = proportion, y = audpc.inf, colour = "audpc control (nb.init 0)"))
+```
+
+## Quel % de crops infectés et guéris au moins une fois ?
+
+```{r how many crops infected and cured}
+data.spatial %>% 
+  select(proportion, agregation, infection.rate, nb.init, year, nb.cycles) %>% 
+  group_by(proportion, agregation, infection.rate, nb.init, year) %>% 
+  mutate(mean.tot.cycles = round(sum(nb.cycles)/10,0)) %>% 
+  ungroup() %>% 
+  select(-nb.cycles) %>% 
+  distinct() %>% 
+  # inf.rate = 4
+  filter(infection.rate == 4) %>% 
+  # filter
+  filter(nb.init == 10) %>% 
+  filter(agregation == 5) %>%
+  filter(year == 5) %>% 
+  mutate(stock.crops = round(1089 -(1089 * proportion/100),0)) %>% 
+  mutate(fl.inf.tot = mean.tot.cycles / stock.crops * 100) %>% 
+  ggplot() +
+  geom_point(mapping = aes(x = as.factor(proportion), y = fl.inf.tot)) +
+  xlab("proportion") +
+  ylab("% of crops infected and cured") +
+  ggtitle("Quel % de crops subit 1 cycle infection-guérison ?")
 ```
 
 ## Découpage occ. VS non.occ
@@ -731,59 +553,9 @@ data.dyn.mean %>%
   ggtitle("AUDPC inf. control (nb.init = 0) VS inf. with regul. \nMean 10 simul, Agregation = 5, Year = 5, nb init pred = 10")
 ```
 
+## Inf. VS adults
 
-
-```{r AUDPCs}
-# 2 plots pour être + lisible
-# plot.audpc1 -> audpc croissantes ou décroissantes strictement
-# plot.audoc2 -> audpc non monotones
-
-plot.audpc1 <- data.dyn.mean %>% 
-  filter(nb.init == 10) %>% 
-  filter(agregation == 5) %>%
-  filter(year == 5) %>% 
-  filter(infection.rate == 4) %>% 
-  select(year, tick, proportion, fl.inf, fl.never.inf, fl.non.occ, fl.occ, fl.cured) %>% 
-  # compute audpc for every inf.
-  group_by(proportion) %>% 
-  mutate(audpc.inf = sum(lintegrate(tick, fl.inf, xint=tick))) %>%
-  mutate(audpc.never.inf = sum(lintegrate(tick, fl.never.inf, xint=tick))) %>% 
-  mutate(audpc.non.occ = sum(lintegrate(tick, fl.non.occ, xint=tick))) %>% 
-  mutate(audpc.occ = sum(lintegrate(tick, fl.occ, xint=tick))) %>% 
-  mutate(audpc.cured = sum(lintegrate(tick, fl.cured, xint=tick))) %>% 
-  # plot according to proportion
-  ggplot() +
-  geom_point(aes(x = proportion, y = audpc.never.inf, colour = "audpc never inf.")) +
-  geom_point(aes(x = proportion, y = audpc.cured, colour = "audpc cured")) +
-  ggtitle("AUDPCs \nMean 10 simul, Agregation = 5, Year = 5, nb init pred = 10")
-
-plot.audpc2 <- data.dyn.mean %>% 
-  filter(nb.init == 10) %>% 
-  filter(agregation == 5) %>%
-  filter(year == 5) %>% 
-  filter(infection.rate == 4) %>% 
-  select(year, tick, proportion, fl.inf, fl.never.inf, fl.non.occ, fl.occ, fl.cured) %>% 
-  # compute audpc for every inf.
-  group_by(proportion) %>% 
-  mutate(audpc.inf = sum(lintegrate(tick, fl.inf, xint=tick))) %>%
-  mutate(audpc.never.inf = sum(lintegrate(tick, fl.never.inf, xint=tick))) %>% 
-  mutate(audpc.non.occ = sum(lintegrate(tick, fl.non.occ, xint=tick))) %>% 
-  mutate(audpc.occ = sum(lintegrate(tick, fl.occ, xint=tick))) %>% 
-  mutate(audpc.cured = sum(lintegrate(tick, fl.cured, xint=tick))) %>% 
-  # plot according to proportion
-  ggplot() +
-  geom_point(aes(x = proportion, y = audpc.inf, colour = "audpc inf.")) +
-  geom_point(aes(x = proportion, y = audpc.non.occ, colour = "audpc non occ.")) +
-  geom_point(aes(x = proportion, y = audpc.occ, colour = "audpc occ.")) +
-  ggtitle("AUDPCs \nMean 10 simul, Agregation = 5, Year = 5, nb init pred = 10")
-
-multiplot(plot.audpc1, plot.audpc2, cols = 2)
-
-```
-
-## Occ. VS non.occ VS adults
-
-```{r occ VS non occ VS adults}
+```{r inf. VS adults}
 data.dyn.mean %>% 
   # inf.rate 4
   filter(infection.rate == 4) %>% 
@@ -808,10 +580,35 @@ data.dyn.mean %>%
   ggtitle("Inf. & preds. \n Agregation = 5, Year = 5, nb init pred = 10)")
 ```
 
-## Distribution of infection.events
+## Non.occ VS Occ. VS adults
 
-à faire
-
+```{r non.occ VS occ. VS adults}
+data.dyn.mean %>% 
+  # inf.rate 4
+  filter(infection.rate == 4) %>% 
+  # filter
+  filter(nb.init == 10) %>% 
+  filter(agregation == 5) %>%
+  filter(year == 5) %>% 
+  # plot
+  ggplot() +
+  ## inf. non.occ
+  geom_point(mapping = aes(x = tick, y = fl.non.occ, colour = "non.occ"),
+             size = 0.5) + 
+  ## inf. occ
+  geom_point(mapping = aes(x = tick, y = fl.occ, colour = "occ"),
+             size = 0.5) + 
+  # dyn. adults
+  geom_point(mapping = aes(x = tick, y = mean.adults * 100 / (max(mean.adults)+10), colour = "Mean nb. adults"),
+             size = 0.5) + 
+  # y = double axe -> à gauche : taux de remplissage / à droite : dyn. pests et adults
+  scale_y_continuous(name = expression("Percentage of infected crops"), #left axis
+                     sec.axis = sec_axis(~ . * (max(data.dyn.mean$mean.adults)+10) / 100 , name = "Nb. of pred. adults"), # right axis
+                     limits = c(0, 100)) +
+  # facets
+  facet_grid(. ~ proportion, labeller = label_both) +
+  ggtitle("Occ. Non occ. & preds. \n Agregation = 5, Year = 5, nb init pred = 10)")
+```
 
 ## Distribution of time.for.crop.loss
 
@@ -966,4 +763,51 @@ data.spatial.mean %>%
   xlab("Proportion") +
   ylab("distribution of crop-loss values") +
   ggtitle("Distribution of crop-loss values for patches at the end of the season \nAgregation = 5, Year = 5, nb.init = 10")
+```
+
+```{r AUDPCs}
+# 2 plots pour être + lisible
+# plot.audpc1 -> audpc croissantes ou décroissantes strictement
+# plot.audoc2 -> audpc non monotones
+
+plot.audpc1 <- data.dyn.mean %>% 
+  filter(nb.init == 10) %>% 
+  filter(agregation == 5) %>%
+  filter(year == 5) %>% 
+  filter(infection.rate == 4) %>% 
+  select(year, tick, proportion, fl.inf, fl.never.inf, fl.non.occ, fl.occ, fl.cured) %>% 
+  # compute audpc for every inf.
+  group_by(proportion) %>% 
+  mutate(audpc.inf = sum(lintegrate(tick, fl.inf, xint=tick))) %>%
+  mutate(audpc.never.inf = sum(lintegrate(tick, fl.never.inf, xint=tick))) %>% 
+  mutate(audpc.non.occ = sum(lintegrate(tick, fl.non.occ, xint=tick))) %>% 
+  mutate(audpc.occ = sum(lintegrate(tick, fl.occ, xint=tick))) %>% 
+  mutate(audpc.cured = sum(lintegrate(tick, fl.cured, xint=tick))) %>% 
+  # plot according to proportion
+  ggplot() +
+  geom_point(aes(x = proportion, y = audpc.never.inf, colour = "audpc never inf.")) +
+  geom_point(aes(x = proportion, y = audpc.cured, colour = "audpc cured")) +
+  ggtitle("AUDPCs \nMean 10 simul, Agregation = 5, Year = 5, nb init pred = 10")
+
+plot.audpc2 <- data.dyn.mean %>% 
+  filter(nb.init == 10) %>% 
+  filter(agregation == 5) %>%
+  filter(year == 5) %>% 
+  filter(infection.rate == 4) %>% 
+  select(year, tick, proportion, fl.inf, fl.never.inf, fl.non.occ, fl.occ, fl.cured) %>% 
+  # compute audpc for every inf.
+  group_by(proportion) %>% 
+  mutate(audpc.inf = sum(lintegrate(tick, fl.inf, xint=tick))) %>%
+  mutate(audpc.never.inf = sum(lintegrate(tick, fl.never.inf, xint=tick))) %>% 
+  mutate(audpc.non.occ = sum(lintegrate(tick, fl.non.occ, xint=tick))) %>% 
+  mutate(audpc.occ = sum(lintegrate(tick, fl.occ, xint=tick))) %>% 
+  mutate(audpc.cured = sum(lintegrate(tick, fl.cured, xint=tick))) %>% 
+  # plot according to proportion
+  ggplot() +
+  geom_point(aes(x = proportion, y = audpc.inf, colour = "audpc inf.")) +
+  geom_point(aes(x = proportion, y = audpc.non.occ, colour = "audpc non occ.")) +
+  geom_point(aes(x = proportion, y = audpc.occ, colour = "audpc occ.")) +
+  ggtitle("AUDPCs \nMean 10 simul, Agregation = 5, Year = 5, nb init pred = 10")
+
+multiplot(plot.audpc1, plot.audpc2, cols = 2)
 ```
