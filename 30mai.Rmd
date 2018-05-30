@@ -60,7 +60,7 @@ multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
 }
 ```
 
-```{r load data}
+```{r load data dyn.}
 ## wd
 data_path <- "data/inf-rate-4"
 
@@ -429,6 +429,127 @@ data.dyn.mean <- data.dyn %>%
   mutate(proportion = factor(proportion))
 ```
 
+```{r load data distribution time.for.crop.loss}
+data_path <- "data/inf-rate-4"
+
+## dyn
+filename.pred.event <- list.files(data_path, 
+                           pattern="^pred-event-[0-9]{1,4}-[0-9]{1,2}-[0-9]{1,2}-[0-9]{1,2}.txt")
+
+column.names.tforcroploss <- c(
+  # par.
+  "proportion",
+  "agregation", 
+  "infection.rate",
+  "nb.init",
+  # time
+  "year", 
+  "tick",
+  # outputs
+  "event",
+  "pxcor",
+  "pycor",
+  "infection.date",
+  "t.for.crop.loss")
+
+
+## load 
+
+data.tforcroploss <- tibble(filename.pred.event) %>% 
+  mutate(file_contents = map(filename.pred.event, ~ read_delim(file.path(data_path, .), delim = " ", col_names = column.names.tforcroploss))) %>% 
+  unnest()
+```
+
+```{r mean time.for.crop.loss}
+data.tforcroploss.mean <- data.tforcroploss %>%
+  select(filename.pred.event, infection.rate, proportion, agregation, nb.init, year, t.for.crop.loss) %>% 
+  group_by(filename.pred.event, t.for.crop.loss) %>% 
+  mutate(count = n()) %>% 
+  ungroup() %>% 
+  group_by(infection.rate, proportion, agregation, nb.init, year, t.for.crop.loss) %>% 
+  mutate(mean.count = mean(count)) %>% 
+  ungroup() %>% 
+  select(-filename.pred.event, - count) %>% 
+  distinct()
+```
+
+```{r load data crop.loss landscape}
+data_path <- "data/inf-rate-4"
+
+## dyn
+filename.end.season <- list.files(data_path, 
+                                  pattern="^end-season-[0-9]{1,4}-[0-9]{1,2}-[0-9]{1,2}-[0-9]{1,2}.txt")
+
+column.names.end.season <- c(
+  # par.
+  "infection.rate",
+  "proportion",
+  "agregation", 
+  "nb.init",
+  # time
+  "year", 
+  # outputs
+  "lsc.tot.crop.loss")
+
+## load 
+
+data.end.season <- tibble(filename.end.season) %>% 
+  mutate(file_contents = map(filename.end.season, ~ read_delim(file.path(data_path, .), delim = " ", col_names = column.names.end.season))) %>% 
+  unnest()
+```
+
+```{r mean data crop.loss landscape}
+# on a 10 simulations par cnfig -> mean(10 values of crop.loss)
+data.end.season.mean <- data.end.season %>% 
+  group_by(infection.rate, proportion, agregation, nb.init, year) %>% 
+  mutate(mean.lsc.tot.crop.loss = mean(lsc.tot.crop.loss)) %>% 
+  select(-filename.end.season) %>% 
+  distinct()
+```
+
+```{r load data for distribution of crop.loss values for crop patches}
+data_path <- "data/inf-rate-4"
+
+## dyn
+filename.spatial <- list.files(data_path, 
+                                  pattern="^spatial-[0-9]{1,4}-[0-9]{1,2}-[0-9]{1,2}-[0-9]{1,2}.txt")
+
+column.names.spatial <- c(
+  # par.
+  "proportion",
+  "agregation", 
+  "infection.rate",
+  "nb.init",
+  # time
+  "year", 
+  "tick",
+  # spatial
+  "pxcor",
+  "pycor",
+  "land.cover",
+  # outputs
+  "nb.visits",
+  "nb.cycles",
+  "time.for.crop.loss",
+  "tot.crop.loss")
+
+## load 
+data.spatial <- tibble(filename.spatial) %>% 
+  mutate(file_contents = map(filename.spatial, ~ read_delim(file.path(data_path, .), delim = " ", col_names = column.names.spatial))) %>% 
+  unnest()
+```
+
+```{r mean data distribution of crop.loss values for crop patches}
+data.spatial.mean <- data.spatial %>% 
+  # filter
+  filter(land.cover == 1) %>% 
+  # mean value of total crop loss for one patch (10 simulations)
+  group_by(infection.rate, proportion, agregation, nb.init, year, pxcor, pycor) %>% 
+  summarize(mean.tot.crop.loss = mean(tot.crop.loss)) %>% 
+  ungroup()
+```
+
+
 ## Dyn. inf. 
 
 ```{r inf without pred VS inf with pred}
@@ -459,6 +580,28 @@ data.dyn.mean %>%
   ggtitle("Dynamic of crop patches with pests \nMean 10 simul, Agregation = 5, Year = 5, nb init pred = 10")
 ```
 
+## Max. infection = nb. max de crop patches infectés
+
+```{r max. inf.}
+data.dyn.mean %>% 
+  select(infection.rate, proportion, agregation, nb.init, year, mean.inf) %>% 
+  # inf.rate = 4
+  filter(infection.rate == 4) %>% 
+  # filter
+  filter(nb.init == 10) %>% 
+  filter(agregation == 5) %>%
+  filter(year == 5) %>% 
+  group_by(proportion) %>% 
+  mutate(max.mean.inf = max(mean.inf)) %>% 
+  select(- mean.inf) %>% 
+  distinct() %>% 
+  # plot according to proportion
+  ggplot() +
+  geom_point(aes(x = proportion, y = max.mean.inf, colour = "max.mean.inf")) +
+  ylab("Max. infected crop patches") +
+  ggtitle("Max. infection (nb. infected crop patches) \nMean 10 simul, Agregation = 5, Year = 5, nb init pred = 10")
+```
+
 ## Découpage occ. VS non.occ
 
 ```{r never inf VS occ VS non.occ VS cured}
@@ -483,7 +626,112 @@ data.dyn.mean %>%
   ggtitle("Dynamic of crop patches with pests \nMean 10 simul, Agregation = 5, Year = 5, nb init pred = 10")
 ```
 
+## audpc VS end.inf.non.occ VS proportion VS crop-loss 
+
+```{r audpc VS end.inf.non.occ VS proportion VS crop-loss landscape }
+
+# on fait un tableau proportion / value (audpc, end.inf.non.occ, crop-loss landscape)
+
+data.audpc.inf <- data.dyn.mean %>% 
+  select(infection.rate, proportion, agregation, nb.init, year, tick, fl.inf) %>% 
+  # inf.rate = 4
+  filter(infection.rate == 4) %>% 
+  # filter
+  filter(nb.init == 10) %>% 
+  filter(agregation == 5) %>%
+  filter(year == 5) %>% 
+  # audpc inf
+  group_by(proportion) %>% 
+  mutate(audpc.inf = sum(lintegrate(tick, fl.inf, xint=tick))) %>% 
+  select(proportion, audpc.inf) %>% 
+  ungroup() %>% 
+  distinct()
+
+data.end.inf.non.occ <- data.dyn.mean %>% 
+  select(infection.rate, proportion, agregation, nb.init, year, tick, fl.non.occ) %>% 
+  # inf.rate = 4
+  filter(infection.rate == 4) %>% 
+  # filter
+  filter(nb.init == 10) %>% 
+  filter(agregation == 5) %>%
+  filter(year == 5) %>% 
+  # filter end.season
+  filter(tick == 900) %>% 
+  select(proportion, fl.non.occ)
+
+data.crop.loss.lsc <- data.end.season.mean %>% 
+  ungroup() %>% 
+  # inf.rate = 4
+  filter(infection.rate == 4) %>% 
+  # filter
+  filter(nb.init == 10) %>% 
+  filter(agregation == 5) %>%
+  filter(year == 5) %>% 
+  select(-lsc.tot.crop.loss) %>% 
+  select(proportion, mean.lsc.tot.crop.loss) %>% 
+  distinct() %>% 
+  mutate(proportion = as.factor(proportion))
+
+data.plot <- data.audpc.inf %>% 
+  left_join(data.end.inf.non.occ, by = "proportion") %>% 
+  left_join(data.crop.loss.lsc, by = "proportion")
+
+data.plot %>% 
+  ggplot()+
+  geom_point(mapping = aes(x = proportion, y = fl.non.occ, colour = "Nb. crop patches infected but non occ.")) +
+  geom_point(mapping = aes(x = proportion, y = mean.lsc.tot.crop.loss, colour = "Total crop loss landscape")) +
+  geom_point(mapping = aes(x = proportion, y = audpc.inf * max(mean.lsc.tot.crop.loss) / max(audpc.inf), colour = "Audpc.inf")) +
+  scale_y_continuous(name = expression("Green and Blue"), #left axis
+                     sec.axis = sec_axis(~ . * max(data.plot$audpc.inf) / max(data.plot$mean.lsc.tot.crop.loss) , name = "Red")) +
+  ggtitle("audpc infection + nb. of infected crop patches at end season + crop loss landscape \nAgregation = 5, Year = 5, nb.init = 10")
+
+```
+
 ## AUDPCs
+
+```{r AUDPC inf control VS inf with regul}
+
+# on détermine l'audpc de la courbe inf. pour nb.init = 0 -> control
+# on détermine l'audpc de la courbe inf. pour nb.init != 0 -> with regulation of pests by predators
+# on plot les deux valeurs en f° de proportion
+
+data.dyn.mean %>% 
+  # inf.rate = 4
+  filter(infection.rate == 4) %>% 
+  # filter
+  filter(nb.init == 10) %>% 
+  filter(agregation == 5) %>%
+  filter(year == 5) %>% 
+  # compute audpc for inf.
+  select(year, tick, proportion, fl.inf) %>% 
+  group_by(proportion) %>% 
+  mutate(audpc.inf = sum(lintegrate(tick, fl.inf, xint=tick))) %>%
+  ungroup() %>% 
+  select(year, proportion, audpc.inf) %>% 
+  distinct() %>% 
+  # plot according to proportion
+  ggplot() +
+  geom_point(aes(x = proportion, y = audpc.inf, colour = "audpc inf.")) +
+  geom_point(data = data.dyn.mean %>% 
+               # inf.rate = 4
+               filter(infection.rate == 4) %>% 
+               # filter control
+               filter(nb.init == 0) %>% 
+               # filter
+               filter(agregation == 5) %>%
+               filter(year == 5) %>% 
+               # compute audpc for inf.
+               select(year, tick, proportion, fl.inf) %>% 
+               group_by(proportion) %>% 
+               mutate(audpc.inf.control = sum(lintegrate(tick, fl.inf, xint=tick))) %>% 
+               ungroup() %>% 
+               select(year, proportion, audpc.inf.control) %>% 
+               distinct(),
+             aes(x = proportion, y = audpc.inf.control, colour = "audpc inf. control")) +
+  ggtitle("AUDPC inf. control (nb.init = 0) VS inf. with regul. \nMean 10 simul, Agregation = 5, Year = 5, nb init pred = 10")
+```
+
+
 
 ```{r AUDPCs}
 # 2 plots pour être + lisible
@@ -567,49 +815,7 @@ data.dyn.mean %>%
 
 ## Distribution of time.for.crop.loss
 
-```{r load data distribution time for crop loss}
-data_path <- "data/inf-rate-4"
-
-## dyn
-filename.pred.event <- list.files(data_path, 
-                           pattern="^pred-event-[0-9]{1,4}-[0-9]{1,2}-[0-9]{1,2}-[0-9]{1,2}.txt")
-
-column.names.tforcroploss <- c(
-  # par.
-  "proportion",
-  "agregation", 
-  "infection.rate",
-  "nb.init",
-  # time
-  "year", 
-  "tick",
-  # outputs
-  "event",
-  "pxcor",
-  "pycor",
-  "infection-date",
-  "t.for.crop.loss")
-
-
-## load 
-
-data.tforcroploss <- tibble(filename.pred.event) %>% 
-  mutate(file_contents = map(filename.pred.event, ~ read_delim(file.path(data_path, .), delim = " ", col_names = column.names.tforcroploss))) %>% 
-  unnest()
-```
-
-```{r mean time.for.crop.loss}
-data.tforcroploss.mean <- data.tforcroploss %>%
-  select(filename.pred.event, infection.rate, proportion, agregation, nb.init, year, t.for.crop.loss) %>% 
-  group_by(filename.pred.event, t.for.crop.loss) %>% 
-  mutate(count = n()) %>% 
-  ungroup() %>% 
-  group_by(infection.rate, proportion, agregation, nb.init, year, t.for.crop.loss) %>% 
-  mutate(mean.count = mean(count)) %>% 
-  ungroup() %>% 
-  select(-filename.pred.event, - count) %>% 
-  distinct()
-```
+Remarque : on ne mesure pas time/for.crop.loss pour les crop patches infectés qui ne reçoivent jamais de prédateurs
 
 2 scénarios de proportion :
 
@@ -655,40 +861,6 @@ multiplot(plot1, plot2, cols=2)
 ```
 
 ## crop loss
-
-```{r load data crop.loss landscape}
-data_path <- "data/inf-rate-4"
-
-## dyn
-filename.end.season <- list.files(data_path, 
-                                  pattern="^end-season-[0-9]{1,4}-[0-9]{1,2}-[0-9]{1,2}-[0-9]{1,2}.txt")
-
-column.names.end.season <- c(
-  # par.
-  "infection.rate",
-  "proportion",
-  "agregation", 
-  "nb.init",
-  # time
-  "year", 
-  # outputs
-  "lsc.tot.crop.loss")
-
-## load 
-
-data.end.season <- tibble(filename.end.season) %>% 
-  mutate(file_contents = map(filename.end.season, ~ read_delim(file.path(data_path, .), delim = " ", col_names = column.names.end.season))) %>% 
-  unnest()
-```
-
-```{r mean data crop.loss landscape}
-# on a 10 simulations par cnfig -> mean(10 values of crop.loss)
-data.end.season.mean <- data.end.season %>% 
-  group_by(infection.rate, proportion, agregation, nb.init, year) %>% 
-  mutate(mean.lsc.tot.crop.loss = mean(lsc.tot.crop.loss)) %>% 
-  select(-filename.end.season) %>% 
-  distinct()
-```
 
 ```{r plot crop.loss landscape}
 # non-normalisé VS normalisé (par le stock total de crop patches)
@@ -780,48 +952,6 @@ data.end.season.mean %>%
 ```
 
 ## distribution of crop loss values
-
-```{r load data for distribution of crop.loss values for crop patches}
-data_path <- "data/inf-rate-4"
-
-## dyn
-filename.spatial <- list.files(data_path, 
-                                  pattern="^spatial-[0-9]{1,4}-[0-9]{1,2}-[0-9]{1,2}-[0-9]{1,2}.txt")
-
-column.names.spatial <- c(
-  # par.
-  "proportion",
-  "agregation", 
-  "infection.rate",
-  "nb.init",
-  # time
-  "year", 
-  "tick",
-  # spatial
-  "pxcor",
-  "pycor",
-  "land.cover",
-  # outputs
-  "nb.visits",
-  "nb.cycles",
-  "time.for.crop.loss",
-  "tot.crop.loss")
-
-## load 
-data.spatial <- tibble(filename.spatial) %>% 
-  mutate(file_contents = map(filename.spatial, ~ read_delim(file.path(data_path, .), delim = " ", col_names = column.names.spatial))) %>% 
-  unnest()
-```
-
-```{r mean data distribution of crop.loss values}
-data.spatial.mean <- data.spatial %>% 
-  # filter
-  filter(land.cover == 1) %>% 
-  # mean value of total crop loss for one patch (10 simulations)
-  group_by(infection.rate, proportion, agregation, nb.init, year, pxcor, pycor) %>% 
-  summarize(mean.tot.crop.loss = mean(tot.crop.loss)) %>% 
-  ungroup()
-```
 
 ```{r plot distribution of crop.loss values for crop patches}
 data.spatial.mean %>% 
